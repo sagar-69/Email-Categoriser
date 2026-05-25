@@ -1,0 +1,28 @@
+# Gmail
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.127.0
+
+# LangGraph + LangChain
+langgraph>=0.2.16
+langchain-core>=0.2.27,<0.3
+langchain-community>=0.2.6,<0.3
+
+# Ollama client
+ollama==0.2.1
+
+# Data
+pandas==2.2.2
+SQLAlchemy==2.0.30
+
+# Dashboard
+streamlit==1.35.0
+plotly==5.22.0
+streamlit-extras==0.4.3
+
+# Utilities
+python-dotenv==1.0.1
+tenacity==8.3.0
+loguru==0.7.2
+rich==13.7.1
