@@ -22,6 +22,14 @@ GMAIL_SCOPES      = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_EMAILS_PER_RUN = int(os.getenv("MAX_EMAILS_PER_RUN", "200"))
 
 # ── Classification Enums ─────────────────────────────────────────────────────
+class EmailTypeLabel(str, Enum):
+    SALES      = "SALES"
+    SUPPORT    = "SUPPORT"
+    SPAM       = "SPAM"
+    MARKETING  = "MARKETING"
+    GENERAL    = "GENERAL"
+    INTERNAL   = "INTERNAL"
+
 class ActionLabel(str, Enum):
     ACTION_REQUIRED = "ACTION_REQUIRED"
     AWAITING_REPLY  = "AWAITING_REPLY"
@@ -41,6 +49,14 @@ class PriorityLabel(str, Enum):
     LOW_PRIORITY = "LOW_PRIORITY"
 
 # ── Display maps (label → human-readable) ────────────────────────────────────
+EMAIL_TYPE_DISPLAY = {
+    "SALES":     "Sales",
+    "SUPPORT":   "Support",
+    "SPAM":      "Spam",
+    "MARKETING": "Marketing",
+    "GENERAL":   "General",
+    "INTERNAL":  "Internal",
+}
 ACTION_DISPLAY = {
     "ACTION_REQUIRED": "Action required",
     "AWAITING_REPLY":  "Awaiting reply",
@@ -61,6 +77,14 @@ PRIORITY_DISPLAY = {
 }
 
 # ── Tag colours for dashboard (Streamlit-compatible hex) ─────────────────────
+EMAIL_TYPE_COLOURS = {
+    "SALES":     "#2E86DE",
+    "SUPPORT":   "#E55039",
+    "SPAM":      "#888780",
+    "MARKETING": "#F6B93B",
+    "GENERAL":   "#1D9E75",
+    "INTERNAL":  "#7F77DD",
+}
 ACTION_COLOURS = {
     "ACTION_REQUIRED": "#D85A30",
     "AWAITING_REPLY":  "#BA7517",

@@ -60,9 +60,10 @@ def run_classification():
 
 
 def launch_dashboard():
-    console.rule("[bold]Step 3: Launching Streamlit Dashboard")
-    import subprocess
-    subprocess.run(["streamlit", "run", "dashboard/app.py", "--server.port", "8501"])
+    console.rule("[bold]Step 3: Launching React Dashboard")
+    console.print("\n[green]Classification complete![/green]")
+    console.print("Make sure your [bold cyan]FastAPI server (port 8000)[/bold cyan] and [bold cyan]React dev server (port 5173)[/bold cyan] are running.")
+    console.print("👉 Open your browser to: [bold blue]http://localhost:5173[/bold blue]\n")
 
 
 if __name__ == "__main__":

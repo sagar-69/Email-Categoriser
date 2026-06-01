@@ -8,9 +8,40 @@ import plotly.graph_objects as go
 import pandas as pd
 
 from config.settings import (
-    ACTION_DISPLAY, DEPT_DISPLAY, PRIORITY_DISPLAY,
-    ACTION_COLOURS, DEPT_COLOURS, PRIORITY_COLOURS
+    EMAIL_TYPE_DISPLAY, ACTION_DISPLAY, DEPT_DISPLAY, PRIORITY_DISPLAY,
+    EMAIL_TYPE_COLOURS, ACTION_COLOURS, DEPT_COLOURS, PRIORITY_COLOURS
 )
+
+
+def email_type_bar_chart(df: pd.DataFrame) -> go.Figure:
+    counts = df["email_type_label"].value_counts().reset_index()
+    counts.columns = ["label", "count"]
+    counts["display"] = counts["label"].map(EMAIL_TYPE_DISPLAY)
+    counts["colour"]  = counts["label"].map(EMAIL_TYPE_COLOURS)
+    counts = counts.sort_values("count", ascending=True)
+
+    fig = go.Figure(go.Bar(
+        x=counts["count"],
+        y=counts["display"],
+        orientation="h",
+        marker_color=counts["colour"],
+        text=counts["count"],
+        textposition="outside",
+    ))
+    fig.update_layout(
+        title="Email type",
+        xaxis_title="",
+        yaxis_title="",
+        margin=dict(l=10, r=40, t=40, b=10),
+        height=280,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12),
+        showlegend=False,
+    )
+    fig.update_xaxes(showgrid=False, zeroline=False)
+    fig.update_yaxes(showgrid=False)
+    return fig
 
 
 def action_bar_chart(df: pd.DataFrame) -> go.Figure:

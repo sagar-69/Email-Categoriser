@@ -12,7 +12,7 @@ import ollama as ollama_client
 
 from config.settings import (
     OLLAMA_MODEL, OLLAMA_TIMEOUT, CLASSIFICATION_RETRIES,
-    ActionLabel, DepartmentLabel, PriorityLabel
+    EmailTypeLabel, ActionLabel, DepartmentLabel, PriorityLabel
 )
 from pipeline.state import EmailState
 from pipeline.prompts import CLASSIFICATION_SYSTEM_PROMPT, build_classification_prompt
@@ -62,27 +62,30 @@ def classify_node(state: EmailState) -> dict:
         parsed = json.loads(cleaned)
 
         # Validate enum values
-        action   = parsed["action"].upper()
-        dept     = parsed["department"].upper()
-        priority = parsed["priority"].upper()
+        email_type = parsed["email_type"].upper()
+        action     = parsed["action"].upper()
+        dept       = parsed["department"].upper()
+        priority   = parsed["priority"].upper()
 
-        assert action   in ActionLabel.__members__,     f"Invalid action: {action}"
-        assert dept     in DepartmentLabel.__members__,  f"Invalid dept: {dept}"
-        assert priority in PriorityLabel.__members__,    f"Invalid priority: {priority}"
+        assert email_type in EmailTypeLabel.__members__, f"Invalid email_type: {email_type}"
+        assert action     in ActionLabel.__members__,    f"Invalid action: {action}"
+        assert dept       in DepartmentLabel.__members__, f"Invalid dept: {dept}"
+        assert priority   in PriorityLabel.__members__,  f"Invalid priority: {priority}"
 
         logger.info(
-            "Classified email {} → {} / {} / {}",
-            state["id"], action, dept, priority
+            "Classified email {} → {} / {} / {} / {}",
+            state["id"], email_type, action, dept, priority
         )
 
         return {
-            "raw_response":   raw,
-            "action_label":   action,
-            "dept_label":     dept,
-            "priority_label": priority,
-            "reason":         parsed.get("reason", ""),
-            "status":         "classified",
-            "retry_count":    retry_count,
+            "raw_response":      raw,
+            "email_type_label":  email_type,
+            "action_label":      action,
+            "dept_label":        dept,
+            "priority_label":    priority,
+            "reason":            parsed.get("reason", ""),
+            "status":            "classified",
+            "retry_count":       retry_count,
         }
 
     except Exception as exc:
@@ -94,13 +97,14 @@ def classify_node(state: EmailState) -> dict:
         if new_retry >= CLASSIFICATION_RETRIES:
             logger.error("classify_node: giving up on email {} after {} retries.", state["id"], new_retry)
             return {
-                "status":      "failed",
-                "error":       str(exc),
-                "retry_count": new_retry,
-                "action_label":   "FYI",
-                "dept_label":     "INTERNAL_PROJECT",
-                "priority_label": "LOW_PRIORITY",
-                "reason":         "Classification failed after max retries.",
+                "status":           "failed",
+                "error":            str(exc),
+                "retry_count":      new_retry,
+                "email_type_label": "GENERAL",
+                "action_label":     "FYI",
+                "dept_label":       "INTERNAL_PROJECT",
+                "priority_label":   "LOW_PRIORITY",
+                "reason":           "Classification failed after max retries.",
             }
         return {"retry_count": new_retry, "status": "pending"}
 
@@ -114,19 +118,20 @@ def store_node(state: EmailState) -> dict:
     """
     from data.store import upsert_email
     record = {
-        "id":            state["id"],
-        "thread_id":     state.get("thread_id", ""),
-        "subject":       state["subject"],
-        "sender":        state["sender"],
-        "sender_email":  state["sender_email"],
-        "snippet":       state["snippet"],
-        "received_at":   state["received_at"],
-        "action_label":  state.get("action_label", ""),
-        "dept_label":    state.get("dept_label", ""),
-        "priority_label":state.get("priority_label", ""),
-        "reason":        state.get("reason", ""),
-        "retry_count":   state.get("retry_count", 0),
-        "status":        state.get("status", "failed"),
+        "id":               state["id"],
+        "thread_id":        state.get("thread_id", ""),
+        "subject":          state["subject"],
+        "sender":           state["sender"],
+        "sender_email":     state["sender_email"],
+        "snippet":          state["snippet"],
+        "received_at":      state["received_at"],
+        "email_type_label": state.get("email_type_label", ""),
+        "action_label":     state.get("action_label", ""),
+        "dept_label":       state.get("dept_label", ""),
+        "priority_label":   state.get("priority_label", ""),
+        "reason":           state.get("reason", ""),
+        "retry_count":      state.get("retry_count", 0),
+        "status":           state.get("status", "failed"),
     }
     upsert_email(record)
     return {}

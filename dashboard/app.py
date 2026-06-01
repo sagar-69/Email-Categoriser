@@ -13,13 +13,13 @@ import pandas as pd
 from datetime import datetime
 
 from config.settings import (
-    ACTION_DISPLAY, DEPT_DISPLAY, PRIORITY_DISPLAY,
-    ACTION_COLOURS, DEPT_COLOURS, PRIORITY_COLOURS
+    EMAIL_TYPE_DISPLAY, ACTION_DISPLAY, DEPT_DISPLAY, PRIORITY_DISPLAY,
+    EMAIL_TYPE_COLOURS, ACTION_COLOURS, DEPT_COLOURS, PRIORITY_COLOURS
 )
 from data.store import load_all, get_stats, init_db
 from dashboard.styles import CUSTOM_CSS
 from dashboard.charts import (
-    action_bar_chart, dept_bar_chart,
+    email_type_bar_chart, action_bar_chart, dept_bar_chart,
     priority_donut_chart, timeline_bar_chart,
 )
 
@@ -72,6 +72,12 @@ if df.empty:
 # ── Sidebar filters ───────────────────────────────────────────────────────────
 st.sidebar.markdown("### Filters")
 
+selected_email_type = st.sidebar.multiselect(
+    "Email type",
+    options=list(EMAIL_TYPE_DISPLAY.keys()),
+    format_func=lambda x: EMAIL_TYPE_DISPLAY[x],
+    default=list(EMAIL_TYPE_DISPLAY.keys()),
+)
 selected_action   = st.sidebar.multiselect(
     "Action intent",
     options=list(ACTION_DISPLAY.keys()),
@@ -93,6 +99,7 @@ selected_priority = st.sidebar.multiselect(
 
 # Apply filters
 filtered_df = df[
+    df["email_type_label"].isin(selected_email_type) &
     df["action_label"].isin(selected_action) &
     df["dept_label"].isin(selected_dept) &
     df["priority_label"].isin(selected_priority)
@@ -102,24 +109,27 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(f"**Showing:** {len(filtered_df)} of {len(df)} emails")
 st.sidebar.markdown(f"**Last sync:** {datetime.now().strftime('%H:%M:%S')}")
 
-# ── Metric row ────────────────────────────────────────────────────────────────
-m1, m2, m3, m4, m5 = st.columns(5)
+# ── Metric row ────────────────────────────────────────────────────────────────────
+m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("Total emails",     len(filtered_df))
-m2.metric("🔴 Urgent",        len(filtered_df[filtered_df["priority_label"] == "URGENT"]))
-m3.metric("✅ Action required",len(filtered_df[filtered_df["action_label"]   == "ACTION_REQUIRED"]))
-m4.metric("⏳ Awaiting reply", len(filtered_df[filtered_df["action_label"]   == "AWAITING_REPLY"]))
-m5.metric("❌ Failed",         len(filtered_df[filtered_df["status"]          == "failed"]))
+m2.metric("🛑 Spam",           len(filtered_df[filtered_df["email_type_label"] == "SPAM"]))
+m3.metric("🔴 Urgent",         len(filtered_df[filtered_df["priority_label"]   == "URGENT"]))
+m4.metric("✅ Action required", len(filtered_df[filtered_df["action_label"]     == "ACTION_REQUIRED"]))
+m5.metric("⏳ Awaiting reply",  len(filtered_df[filtered_df["action_label"]     == "AWAITING_REPLY"]))
+m6.metric("❌ Failed",          len(filtered_df[filtered_df["status"]            == "failed"]))
 
 st.markdown("---")
 
-# ── Charts row ────────────────────────────────────────────────────────────────
-ch1, ch2, ch3 = st.columns([1, 1, 1])
+# ── Charts row ────────────────────────────────────────────────────────────────────
+ch1, ch2, ch3, ch4 = st.columns([1, 1, 1, 1])
 
 with ch1:
-    st.plotly_chart(action_bar_chart(filtered_df), use_container_width=True)
+    st.plotly_chart(email_type_bar_chart(filtered_df), use_container_width=True)
 with ch2:
-    st.plotly_chart(dept_bar_chart(filtered_df), use_container_width=True)
+    st.plotly_chart(action_bar_chart(filtered_df), use_container_width=True)
 with ch3:
+    st.plotly_chart(dept_bar_chart(filtered_df), use_container_width=True)
+with ch4:
     st.plotly_chart(priority_donut_chart(filtered_df), use_container_width=True)
 
 st.plotly_chart(timeline_bar_chart(filtered_df), use_container_width=True)
@@ -159,15 +169,16 @@ def colour_tag(label: str, colour_map: dict, display_map: dict) -> str:
 
 
 for _, row in display_df.head(100).iterrows():
-    action_tag   = colour_tag(row["action_label"],   ACTION_COLOURS,   ACTION_DISPLAY)
-    dept_tag     = colour_tag(row["dept_label"],     DEPT_COLOURS,     DEPT_DISPLAY)
-    priority_tag = colour_tag(row["priority_label"], PRIORITY_COLOURS, PRIORITY_DISPLAY)
+    email_type_tag = colour_tag(row["email_type_label"], EMAIL_TYPE_COLOURS, EMAIL_TYPE_DISPLAY)
+    action_tag     = colour_tag(row["action_label"],     ACTION_COLOURS,     ACTION_DISPLAY)
+    dept_tag       = colour_tag(row["dept_label"],       DEPT_COLOURS,       DEPT_DISPLAY)
+    priority_tag   = colour_tag(row["priority_label"],   PRIORITY_COLOURS,   PRIORITY_DISPLAY)
 
     st.markdown(f"""
     <div class="email-card">
         <div class="email-from">{row['sender']} · {row['sender_email']}</div>
         <div class="email-subject">{row['subject']}</div>
-        <div style="margin-top:6px">{action_tag}{dept_tag}{priority_tag}</div>
+        <div style="margin-top:6px">{email_type_tag}{action_tag}{dept_tag}{priority_tag}</div>
         <div style="font-size:12px;color:#888;margin-top:6px">{row['reason']}</div>
     </div>
     """, unsafe_allow_html=True)
@@ -176,7 +187,7 @@ for _, row in display_df.head(100).iterrows():
 with st.expander("View raw data table"):
     st.dataframe(
         display_df[[
-            "subject", "sender", "action_label",
+            "subject", "sender", "email_type_label", "action_label",
             "dept_label", "priority_label", "reason", "received_at"
         ]].head(200),
         use_container_width=True,

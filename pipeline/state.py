@@ -23,6 +23,7 @@ class EmailState(TypedDict):
     raw_response:   Optional[str]         # Raw text from Ollama
 
     # ── Output fields (set by classify node) ─────────────────────────────────
+    email_type_label: Optional[str]    # One of EmailTypeLabel
     action_label:   Optional[str]         # One of ActionLabel
     dept_label:     Optional[str]         # One of DepartmentLabel
     priority_label: Optional[str]         # One of PriorityLabel

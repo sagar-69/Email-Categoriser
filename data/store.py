@@ -65,10 +65,11 @@ def get_stats() -> dict:
     """Return aggregated counts per label group."""
     df = load_all()
     if df.empty:
-        return {"action": {}, "dept": {}, "priority": {}}
+        return {"email_type": {}, "action": {}, "dept": {}, "priority": {}}
     return {
-        "action":   df["action_label"].value_counts().to_dict(),
-        "dept":     df["dept_label"].value_counts().to_dict(),
-        "priority": df["priority_label"].value_counts().to_dict(),
-        "total":    len(df),
+        "email_type": df["email_type_label"].value_counts().to_dict(),
+        "action":     df["action_label"].value_counts().to_dict(),
+        "dept":       df["dept_label"].value_counts().to_dict(),
+        "priority":   df["priority_label"].value_counts().to_dict(),
+        "total":      len(df),
     }

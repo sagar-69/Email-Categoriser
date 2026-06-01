@@ -14,7 +14,8 @@ def make_state(**kwargs) -> EmailState:
         "snippet": "Your invoice #4821 is 30 days overdue.",
         "body_preview": "", "received_at": "2024-01-15",
         "prompt": None, "raw_response": None,
-        "action_label": None, "dept_label": None, "priority_label": None,
+        "email_type_label": None, "action_label": None, "dept_label": None,
+        "priority_label": None,
         "reason": None, "retry_count": 0, "status": "pending", "error": None,
     }
     base.update(kwargs)
@@ -32,15 +33,16 @@ def test_parse_node_sets_prompt():
 def test_classify_node_success(mock_chat):
     mock_chat.return_value = {
         "message": {
-            "content": '{"action":"ACTION_REQUIRED","department":"FINANCE","priority":"URGENT","reason":"Overdue invoice."}'
+            "content": '{"email_type":"GENERAL","action":"ACTION_REQUIRED","department":"FINANCE","priority":"URGENT","reason":"Overdue invoice."}'
         }
     }
     state = make_state(prompt="Subject: Invoice overdue\nFrom: vendor\nSnippet: overdue")
     result = classify_node(state)
-    assert result["action_label"]   == "ACTION_REQUIRED"
-    assert result["dept_label"]     == "FINANCE"
-    assert result["priority_label"] == "URGENT"
-    assert result["status"]         == "classified"
+    assert result["email_type_label"] == "GENERAL"
+    assert result["action_label"]     == "ACTION_REQUIRED"
+    assert result["dept_label"]       == "FINANCE"
+    assert result["priority_label"]   == "URGENT"
+    assert result["status"]           == "classified"
 
 
 @patch("pipeline.nodes.ollama_client.chat")

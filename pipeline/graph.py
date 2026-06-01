@@ -53,15 +53,16 @@ def classify_email(email: dict) -> dict:
     """
     initial_state: EmailState = {
         **email,
-        "prompt":         None,
-        "raw_response":   None,
-        "action_label":   None,
-        "dept_label":     None,
-        "priority_label": None,
-        "reason":         None,
-        "retry_count":    0,
-        "status":         "pending",
-        "error":          None,
+        "prompt":           None,
+        "raw_response":     None,
+        "email_type_label": None,
+        "action_label":     None,
+        "dept_label":       None,
+        "priority_label":   None,
+        "reason":           None,
+        "retry_count":      0,
+        "status":           "pending",
+        "error":            None,
     }
     return email_graph.invoke(initial_state)
 
@@ -74,7 +75,14 @@ def classify_batch(emails: list[dict]) -> list[dict]:
     results = []
     total = len(emails)
     for i, email in enumerate(emails, 1):
-        print(f"  [{i}/{total}] Classifying: {email['subject'][:60]}")
+        print(f"\n  [{i}/{total}] Classifying: {email['subject'][:60]}")
         result = classify_email(email)
+        
+        if result.get("status") == "classified":
+            print(f"      ↳ Type: {result.get('email_type_label')} | Action: {result.get('action_label')} | Dept: {result.get('dept_label')} | Priority: {result.get('priority_label')}")
+            print(f"      ↳ Reason: {result.get('reason')}")
+        else:
+            print(f"      ↳ [FAILED] {result.get('error')}")
+            
         results.append(result)
     return results
