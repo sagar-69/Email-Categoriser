@@ -1,7 +1,6 @@
 #!/bin/bash
 
-echo "Starting Inbox Intel Project..."
-PWD_PATH=$(pwd)
+echo "Starting Inbox Intel Project (Linux)..."
 
 # 1. Start Ollama AI engine
 echo "Starting Ollama..."

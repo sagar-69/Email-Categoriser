@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   Mail, RefreshCw, Moon, Sun, Download, Filter,
-  AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2
+  AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search
 } from 'lucide-react';
 
 // ── Config / Constants (matches Python backend settings.py) ─────────
@@ -191,6 +191,7 @@ export default function InboxDashboard() {
   const [error, setError] = useState(null);
   const [lastSync, setLastSync] = useState(null);
   const [sortBy, setSortBy] = useState('Priority (urgent first)');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filters
   const [selEmailType, setSelEmailType] = useState(Object.keys(EMAIL_TYPE_DISPLAY));
@@ -228,13 +229,21 @@ export default function InboxDashboard() {
 
   // Filtered data
   const filtered = useMemo(() => {
-    return data.filter(d =>
-      selEmailType.includes(d.email_type_label) &&
-      selAction.includes(d.action_label) &&
-      selDept.includes(d.dept_label) &&
-      selPriority.includes(d.priority_label)
-    );
-  }, [data, selEmailType, selAction, selDept, selPriority]);
+    return data.filter(d => {
+      const matchesTags = selEmailType.includes(d.email_type_label) &&
+                          selAction.includes(d.action_label) &&
+                          selDept.includes(d.dept_label) &&
+                          selPriority.includes(d.priority_label);
+      if (!matchesTags) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (d.subject && d.subject.toLowerCase().includes(q)) ||
+        (d.sender && d.sender.toLowerCase().includes(q)) ||
+        (d.reason && d.reason.toLowerCase().includes(q))
+      );
+    });
+  }, [data, selEmailType, selAction, selDept, selPriority, searchQuery]);
 
   // Sorted data
   const sorted = useMemo(() => {
@@ -317,12 +326,16 @@ export default function InboxDashboard() {
   // Handlers
   const handleRefresh = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       // Trigger Python pipeline to fetch & classify
       const res = await fetch(`${API_BASE}/classify`, { method: 'POST' });
-      if (!res.ok) console.error("Classification failed", await res.text());
+      if (!res.ok) {
+        throw new Error(`Classification failed: ${res.status}`);
+      }
     } catch (err) {
       console.error("Network error during classification", err);
+      setError(`Refresh failed: ${err.message}. Ensure backend is running.`);
     }
     // Always reload data from SQLite afterwards
     await loadEmails();
@@ -417,6 +430,19 @@ export default function InboxDashboard() {
               </button>
             </div>
           </div>
+
+          {/* Banner Error (if data already exists but a background operation failed) */}
+          {error && data.length > 0 && (
+            <div className="mb-6 p-4 rounded-lg bg-red-100 text-red-800 border border-red-200 flex items-center justify-between">
+              <div className="flex items-center">
+                <XCircle className="w-5 h-5 mr-2" />
+                <span className="text-sm font-medium">{error}</span>
+              </div>
+              <button onClick={() => setError(null)} className="text-red-600 hover:text-red-900 transition-colors">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Loading state */}
           {loading && data.length === 0 && (
@@ -581,6 +607,16 @@ export default function InboxDashboard() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className={`text-lg font-semibold ${textMain}`}>Emails</h2>
                 <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className={`w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 ${textSub}`} />
+                    <input
+                      type="text"
+                      placeholder="Search emails..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`pl-9 pr-3 py-1.5 text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-sky-500 ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-200 placeholder-stone-500' : 'bg-white border-stone-200 text-stone-700 placeholder-stone-400'}`}
+                    />
+                  </div>
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
@@ -605,7 +641,8 @@ export default function InboxDashboard() {
                 {sorted.slice(0, 100).map((row) => (
                   <div key={row.id} className={`rounded-xl border p-4 transition-colors hover:shadow-md ${bgCard} ${borderCol}`}>
                     <div className={`text-xs mb-1 ${textSub}`}>{row.sender} · {row.sender_email}</div>
-                    <div className={`text-sm font-semibold mb-2 ${textMain}`}>{row.subject}</div>
+                    <div className={`text-sm font-semibold mb-1 ${textMain}`}>{row.subject}</div>
+                    {row.snippet && <div className={`text-sm mb-2 line-clamp-2 ${darkMode ? 'text-stone-400' : 'text-stone-600'}`}>{row.snippet}</div>}
                     <div className="flex flex-wrap gap-2 mb-2">
                       <Tag label={EMAIL_TYPE_DISPLAY[row.email_type_label] || row.email_type_label} value={row.email_type_label} darkMode={darkMode} />
                       <Tag label={ACTION_DISPLAY[row.action_label] || row.action_label} value={row.action_label} darkMode={darkMode} />
