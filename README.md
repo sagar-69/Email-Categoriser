@@ -26,24 +26,31 @@
 
 ### How It Works
 
-```
-Gmail API ──► LangGraph Pipeline ──► Ollama (Local LLM) ──► SQLite ──► React Dashboard
-     │              │                      │                    │            │
-     │              │                      │                    │            ▼
-     │              │                      │                    │      📊 Charts & Filters
-     │              │                      │                    │
-     │              │                      │                    ▼
-     │              │                      │              💾 Local Database
-     │              │                      │
-     │              │                      ▼
-     │              │              🤖 AI Classification
-     │              │                 (phi3:mini / llama3)
-     │              │
-     │              ▼
-     │       📝 Parse & Prompt
-     │
-     ▼
-📧 Fetch Unread Emails
+```mermaid
+flowchart LR
+    A([📧 Gmail API]) -->|Fetch Unread| B[LangGraph Pipeline]
+    
+    subgraph Local AI & Storage
+        B <-->|📝 Prompt & Classify| C{🤖 Ollama LLM}
+        B -->|Store| D[(💾 SQLite DB)]
+    end
+
+    subgraph Presentation
+        D -.- E[FastAPI]
+        E -->|Serve Data| F([📊 React Dashboard])
+    end
+
+    classDef api fill:#f87171,stroke:#b91c1c,color:white,stroke-width:2px
+    classDef pipe fill:#fbbf24,stroke:#b45309,color:white,stroke-width:2px
+    classDef llm fill:#a78bfa,stroke:#6d28d9,color:white,stroke-width:2px
+    classDef db fill:#34d399,stroke:#047857,color:white,stroke-width:2px
+    classDef ui fill:#60a5fa,stroke:#1d4ed8,color:white,stroke-width:2px
+    
+    class A api
+    class B pipe
+    class C llm
+    class D db
+    class F ui
 ```
 
 ---
