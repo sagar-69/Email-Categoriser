@@ -5,6 +5,7 @@ Usage:
     python scripts/run.py               # classify + launch dashboard
     python scripts/run.py --fetch-only  # classify, no dashboard
     python scripts/run.py --dash-only   # skip classify, open dashboard
+    python scripts/run.py --mode hr     # classify in HR mode
 """
 
 import sys
@@ -17,37 +18,46 @@ from rich.progress import track
 sys.path.insert(0, ".")
 
 from data.fetcher import fetch_unread_emails
-from data.store import init_db, load_unread_ids, get_stats
+from data.store import init_db, load_unread_ids, get_stats, load_hr_unclassified_ids, get_hr_stats
 from pipeline.graph import classify_batch
 
 console = Console()
 
 
-def run_classification():
-    console.rule("[bold]Step 1: Fetching unread emails from Gmail")
+def run_classification(mode: str = "standard", reclassify_all: bool = False):
+    mode_label = "HR" if mode == "hr" else "Standard"
+    console.rule(f"[bold]Step 1: Fetching unread emails from Gmail ({mode_label} mode)")
     emails = fetch_unread_emails()
 
     if not emails:
         console.print("[yellow]No unread emails found. Exiting.[/yellow]")
         return
 
-    # Skip emails already in the database
-    existing_ids = load_unread_ids()
-    new_emails = [e for e in emails if e["id"] not in existing_ids]
-    console.print(f"  Total unread: {len(emails)}  |  New (not yet classified): {len(new_emails)}")
+    if reclassify_all:
+        new_emails = emails
+        console.print(f"  Total unread: {len(emails)}  |  Re-classifying ALL in {mode_label} mode")
+    else:
+        # Skip emails already classified in the requested mode
+        if mode == "hr":
+            existing_ids = load_unread_ids()  # skip emails already in DB
+        else:
+            existing_ids = load_unread_ids()
+
+        new_emails = [e for e in emails if e["id"] not in existing_ids]
+        console.print(f"  Total unread: {len(emails)}  |  New (not yet classified): {len(new_emails)}")
 
     if not new_emails:
         console.print("[green]All emails already classified.[/green]")
         return
 
-    console.rule("[bold]Step 2: Classifying via LangGraph + Ollama")
-    results = classify_batch(new_emails)
+    console.rule(f"[bold]Step 2: Classifying via LangGraph + Ollama ({mode_label})")
+    results = classify_batch(new_emails, mode=mode)
 
     # Summary table
     classified = sum(1 for r in results if r.get("status") == "classified")
     failed     = sum(1 for r in results if r.get("status") == "failed")
 
-    table = Table(title="Classification Summary")
+    table = Table(title=f"Classification Summary ({mode_label})")
     table.add_column("Metric", style="cyan")
     table.add_column("Count",  style="magenta")
     table.add_row("Classified",  str(classified))
@@ -55,8 +65,12 @@ def run_classification():
     table.add_row("Total run",   str(len(results)))
     console.print(table)
 
-    stats = get_stats()
-    console.print(f"\n[bold]Database totals:[/bold] {stats['total']} emails classified")
+    if mode == "hr":
+        stats = get_hr_stats()
+        console.print(f"\n[bold]HR Database totals:[/bold] {stats['total_hr']} HR emails classified")
+    else:
+        stats = get_stats()
+        console.print(f"\n[bold]Database totals:[/bold] {stats['total']} emails classified")
 
 
 def launch_dashboard():
@@ -70,11 +84,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="inbox-intel runner")
     parser.add_argument("--fetch-only", action="store_true")
     parser.add_argument("--dash-only",  action="store_true")
+    parser.add_argument("--mode", choices=["standard", "hr"], default="standard",
+                        help="Classification mode: standard (4-dim) or hr (5 HR categories)")
+    parser.add_argument("--reclassify-all", action="store_true",
+                        help="Re-classify all emails, not just new ones")
     args = parser.parse_args()
 
     init_db()
 
     if not args.dash_only:
-        run_classification()
+        run_classification(mode=args.mode, reclassify_all=args.reclassify_all)
     if not args.fetch_only:
         launch_dashboard()
+

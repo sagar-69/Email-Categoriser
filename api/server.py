@@ -7,14 +7,16 @@ and the React dashboard dev server (5173).
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Add project root to sys.path so we can import our modules
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from data.store import load_all, get_stats, init_db
+from pydantic import BaseModel
+from data.store import load_all, get_stats, init_db, load_hr_emails, get_hr_stats
 
 app = FastAPI(title="Inbox Intel API", version="1.0.0")
 
@@ -33,17 +35,22 @@ def startup():
 
 
 @app.get("/api/emails")
-def list_emails():
-    """Return all classified emails as a list of dicts."""
-    df = load_all()
+def list_emails(mode: Optional[str] = Query(None)):
+    """Return classified emails as a list of dicts. Use ?mode=hr for HR emails."""
+    if mode == "hr":
+        df = load_hr_emails()
+    else:
+        df = load_all()
     # Replace NaN with None for JSON serialization
     df = df.where(df.notnull(), None)
     return df.to_dict(orient="records")
 
 
 @app.get("/api/stats")
-def stats():
-    """Return aggregated label counts."""
+def stats(mode: Optional[str] = Query(None)):
+    """Return aggregated label counts. Use ?mode=hr for HR stats."""
+    if mode == "hr":
+        return get_hr_stats()
     return get_stats()
 
 
@@ -52,12 +59,18 @@ def health():
     return {"status": "ok"}
 
 
+class ClassifyRequest(BaseModel):
+    mode: str = "standard"
+    reclassify_all: bool = False
+
+
 @app.post("/api/classify")
-def classify():
+def classify(req: ClassifyRequest = ClassifyRequest()):
     """Trigger the classification pipeline to fetch and classify new emails."""
     from scripts.run import run_classification
     try:
-        run_classification()
-        return {"status": "success", "message": "Classification complete."}
+        run_classification(mode=req.mode, reclassify_all=req.reclassify_all)
+        return {"status": "success", "message": f"Classification complete (mode: {req.mode})."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+

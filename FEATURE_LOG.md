@@ -139,6 +139,13 @@
 - **Rationale**: Improves UX by making it easier to find and read emails without leaving the dashboard.
 - **Impact**: React dashboard is more robust and fully featured.
 
+#### [✅] Added — HR Classification Pipeline & Mode
+- **Date**: 2026-06-04
+- **Change**: Added a specialized HR classification pipeline using a consensus engine (keyword pre-filter + LLM).
+- **Features**: New LangGraph nodes (`hr_nodes.py`), keyword classification (`hr_keywords.py`), separate prompts (`hr_prompts.py`), and a `ClassificationModeModal` in the React dashboard for toggling between Standard and HR classification modes.
+- **Rationale**: Support domain-specific HR categorizations (Leave, Payroll, Recruitment, Offboard, Admin) with higher accuracy.
+- **Impact**: Extends the platform to handle specific HR domain contexts alongside the standard 4-dimension classification.
+
 ---
 
 ## Pending / Planned Changes
@@ -233,6 +240,7 @@
 | 2026-06-03 | ✅ | Add `.env.example` template |
 | 2026-06-03 | 🔧 | Cross-platform startup scripts and graceful shutdown |
 | 2026-06-03 | ✅ | React dashboard search, snippets, and error handling |
+| 2026-06-04 | ✅ | HR classification pipeline and React dashboard mode modal |
 | TBD | 📦 | Add pytest testing framework |
 | TBD | ✅ | API pagination |
 | TBD | ✅ | WebSocket real-time updates |

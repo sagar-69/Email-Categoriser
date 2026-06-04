@@ -5,8 +5,11 @@ import {
 } from 'recharts';
 import {
   Mail, RefreshCw, Moon, Sun, Download, Filter,
-  AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search
+  AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search,
+  ToggleLeft, ToggleRight, Briefcase, Brain
 } from 'lucide-react';
+import ClassificationModeModal from './ClassificationModeModal';
+import HRDashboard from './HRDashboard';
 
 // ── Config / Constants (matches Python backend settings.py) ─────────
 const EMAIL_TYPE_DISPLAY = {
@@ -115,8 +118,9 @@ const TAG_BG = {
 // ── API helper ──────────────────────────────────────────────────────
 const API_BASE = '/api';
 
-async function fetchEmails() {
-  const res = await fetch(`${API_BASE}/emails`);
+async function fetchEmails(mode = 'standard') {
+  const url = mode === 'hr' ? `${API_BASE}/emails?mode=hr` : `${API_BASE}/emails`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -187,11 +191,16 @@ const CustomTooltip = ({ active, payload, label, darkMode }) => {
 export default function InboxDashboard() {
   const [darkMode, setDarkMode] = useState(false);
   const [data, setData] = useState([]);
+  const [hrData, setHrData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastSync, setLastSync] = useState(null);
   const [sortBy, setSortBy] = useState('Priority (urgent first)');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Classification mode state
+  const [showModal, setShowModal] = useState(false);
+  const [classificationMode, setClassificationMode] = useState('standard');
 
   // Filters
   const [selEmailType, setSelEmailType] = useState(Object.keys(EMAIL_TYPE_DISPLAY));
@@ -199,24 +208,58 @@ export default function InboxDashboard() {
   const [selDept, setSelDept] = useState(Object.keys(DEPT_DISPLAY));
   const [selPriority, setSelPriority] = useState(Object.keys(PRIORITY_DISPLAY));
 
-  // Fetch emails from the API on mount
-  const loadEmails = useCallback(async () => {
+  // Check sessionStorage on mount for classification mode
+  useEffect(() => {
+    const stored = sessionStorage.getItem('classification_mode');
+    if (stored) {
+      setClassificationMode(stored);
+    } else {
+      setShowModal(true);
+    }
+  }, []);
+
+  // Modal callback
+  const handleModeSelect = useCallback((mode, remember) => {
+    const selected = mode || 'standard';
+    setClassificationMode(selected);
+    setShowModal(false);
+    if (remember && mode) {
+      sessionStorage.setItem('classification_mode', selected);
+    }
+  }, []);
+
+  // Fetch emails from the API on mount and when mode changes
+  const loadEmails = useCallback(async (mode) => {
+    const currentMode = mode || classificationMode;
     setLoading(true);
     setError(null);
     try {
-      const emails = await fetchEmails();
-      setData(emails);
+      if (currentMode === 'hr') {
+        const hrEmails = await fetchEmails('hr');
+        setHrData(hrEmails);
+      } else {
+        const emails = await fetchEmails('standard');
+        setData(emails);
+      }
       setLastSync(new Date());
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [classificationMode]);
 
   useEffect(() => {
     loadEmails();
   }, [loadEmails]);
+
+  // Toggle mode handler
+  const handleToggleMode = useCallback(() => {
+    const newMode = classificationMode === 'standard' ? 'hr' : 'standard';
+    setClassificationMode(newMode);
+    sessionStorage.setItem('classification_mode', newMode);
+    loadEmails(newMode);
+  }, [classificationMode, loadEmails]);
 
   // Theme helpers
   const bgMain = darkMode ? 'bg-stone-950' : 'bg-stone-50';
@@ -328,8 +371,12 @@ export default function InboxDashboard() {
     setLoading(true);
     setError(null);
     try {
-      // Trigger Python pipeline to fetch & classify
-      const res = await fetch(`${API_BASE}/classify`, { method: 'POST' });
+      // Trigger Python pipeline to fetch & classify in current mode
+      const res = await fetch(`${API_BASE}/classify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: classificationMode, reclassify_all: false }),
+      });
       if (!res.ok) {
         throw new Error(`Classification failed: ${res.status}`);
       }
@@ -339,7 +386,7 @@ export default function InboxDashboard() {
     }
     // Always reload data from SQLite afterwards
     await loadEmails();
-  }, [loadEmails]);
+  }, [loadEmails, classificationMode]);
 
   const handleExport = useCallback(() => {
     const headers = ['subject', 'sender', 'email_type_label', 'action_label', 'dept_label', 'priority_label', 'reason', 'received_at'];
@@ -380,6 +427,94 @@ export default function InboxDashboard() {
 
   return (
     <div className={`min-h-screen ${bgMain} transition-colors duration-300`}>
+      {/* Classification Mode Modal */}
+      <ClassificationModeModal
+        isOpen={showModal}
+        onSelect={handleModeSelect}
+        darkMode={darkMode}
+      />
+
+      {/* Mode Toggle Banner */}
+      <div className={`w-full px-6 py-3 border-b flex items-center justify-between transition-colors ${
+        classificationMode === 'hr'
+          ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700'
+          : darkMode ? 'bg-stone-900 border-stone-800' : 'bg-white border-stone-200'
+      }`}>
+        <div className="flex items-center gap-3">
+          {classificationMode === 'hr'
+            ? <Briefcase className="w-5 h-5 text-amber-600" />
+            : <Brain className={`w-5 h-5 ${darkMode ? 'text-stone-400' : 'text-stone-500'}`} />
+          }
+          <span className={`text-sm font-semibold ${
+            classificationMode === 'hr'
+              ? 'text-amber-800 dark:text-amber-300'
+              : darkMode ? 'text-stone-300' : 'text-stone-600'
+          }`}>
+            {classificationMode === 'hr'
+              ? 'HR Classification Mode: ACTIVE'
+              : 'Standard Classification Mode'
+            }
+          </span>
+        </div>
+        <button
+          onClick={handleToggleMode}
+          className="flex items-center gap-2 transition-colors"
+          title={`Switch to ${classificationMode === 'hr' ? 'Standard' : 'HR'} mode`}
+        >
+          {classificationMode === 'hr'
+            ? <ToggleRight className="w-8 h-8 text-amber-600" />
+            : <ToggleLeft className={`w-8 h-8 ${darkMode ? 'text-stone-500' : 'text-stone-400'}`} />
+          }
+        </button>
+      </div>
+
+      {/* Conditional Rendering: HR Mode vs Standard Mode */}
+      {classificationMode === 'hr' ? (
+        <>
+          {/* HR Mode Header */}
+          <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+            <div>
+              <h1 className={`text-2xl font-bold flex items-center gap-2 ${textMain}`}>
+                <Briefcase className="w-7 h-7 text-amber-500" />
+                HR Intelligence
+              </h1>
+              <p className={`text-sm mt-1 ${textSub}`}>HR email classification dashboard — Powered by local AI</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-yellow-400' : 'bg-white border-stone-200 text-stone-600'}`}
+              >
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              >
+                {loading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <RefreshCw className="w-4 h-4" />
+                }
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          {/* Loading state for HR */}
+          {loading && hrData.length === 0 && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className={`w-8 h-8 animate-spin ${darkMode ? 'text-stone-400' : 'text-stone-500'}`} />
+              <span className={`ml-3 text-lg ${textSub}`}>Loading HR emails...</span>
+            </div>
+          )}
+
+          {/* HR Dashboard */}
+          {(!loading || hrData.length > 0) && (
+            <HRDashboard emails={hrData} darkMode={darkMode} />
+          )}
+        </>
+      ) : (
       <div className="flex">
         {/* ── Sidebar ── */}
         <aside className={`w-64 h-screen sticky top-0 border-r p-5 overflow-y-auto ${borderCol} ${bgCard}`}>
@@ -660,6 +795,7 @@ export default function InboxDashboard() {
           )}
         </main>
       </div>
+      )}
     </div>
   );
 }

@@ -62,8 +62,8 @@
 1. **Auth**: `auth/gmail_auth.py` handles Google OAuth2 → gets `token.json`
 2. **Fetch**: `data/fetcher.py` calls Gmail API for unread emails
 3. **Deduplicate**: `data/store.py` skips already-classified emails
-4. **Parse**: `pipeline/nodes.py:parse_node` builds the LLM prompt
-5. **Classify**: `pipeline/nodes.py:classify_node` sends prompt to Ollama, parses JSON
+4. **Parse**: `pipeline/nodes.py:parse_node` (Standard) or `pipeline/hr_nodes.py:hr_parse_node` (HR) builds the LLM prompt
+5. **Classify**: `classify_node` or `hr_classify_node` sends prompt to Ollama, parses JSON, and runs optional consensus logic
 6. **Validate**: Enums check labels are valid; retry if not (max 3)
 7. **Store**: `pipeline/nodes.py:store_node` saves to SQLite via `upsert_email()`
 8. **Serve**: `api/server.py` exposes data via REST
@@ -266,6 +266,8 @@ rich==13.7.1
 - [x] LangGraph state graph with 3 nodes: `parse` → `classify` → `store`
 - [x] Local LLM classification via Ollama (`phi3:mini` / `llama3`)
 - [x] 4-dimension classification: Email Type, Action Intent, Department, Priority
+- [x] HR Classification Mode: specialized 5-category pipeline (Leave, Payroll, Recruitment, Offboard, Admin)
+- [x] Consensus engine combining keyword pre-filter with LLM evaluation
 - [x] Retry logic (max 3 attempts) with fallback labels on failure
 - [x] SQLite persistence with `INSERT OR REPLACE` (idempotent)
 - [x] Deduplication: skip already-classified emails
@@ -279,6 +281,7 @@ rich==13.7.1
 
 ### Dashboards
 - [x] **React Dashboard** (modern):
+  - [x] First-visit modal for Classification Mode selection (Standard vs HR)
   - [x] Dark/light mode toggle
   - [x] 6 metric cards (Total, Spam, Urgent, Action Required, Awaiting, Failed)
   - [x] 4 bar charts (Email Type, Action Intent, Department, Priority)
