@@ -80,6 +80,8 @@
 | `GET` | `/api/emails` | Returns all classified emails as JSON array |
 | `GET` | `/api/stats` | Returns aggregated label counts per dimension |
 | `GET` | `/api/health` | Health check — returns `{"status": "ok"}` |
+| `GET` | `/api/unread-count` | Returns count of unread emails |
+| `PATCH` | `/api/emails/{email_id}/read` | Marks an email as read |
 | `POST` | `/api/classify` | Triggers full pipeline (fetch + classify new emails) |
 
 ### Gmail API Endpoints (via `googleapiclient`)
@@ -160,10 +162,16 @@ CREATE TABLE IF NOT EXISTS emails (
     action_label    TEXT,                   -- ACTION_REQUIRED, AWAITING_REPLY, FYI, REFERENCE
     dept_label      TEXT,                   -- HR_ADMIN, INTERNAL_PROJECT, EXTERNAL_CLIENT, IT_SYSTEMS, FINANCE
     priority_label  TEXT,                   -- URGENT, STANDARD, LOW_PRIORITY
-    reason          TEXT,                   -- LLM explanation (1-2 sentences)
+    reason          TEXT,                   -- LLM explanation (free text)
     classified_at   TEXT,                   -- ISO timestamp
     retry_count     INTEGER DEFAULT 0,      -- Number of retry attempts
-    status          TEXT DEFAULT 'classified' -- 'classified' | 'failed'
+    status          TEXT DEFAULT 'classified', -- 'classified' | 'failed'
+    classification_mode TEXT DEFAULT 'standard', -- 'standard' | 'hr'
+    hr_category     TEXT,                   -- HR sub-category
+    hr_confidence   REAL DEFAULT 0.0,       -- Keyword confidence
+    hr_matched_keywords TEXT,               -- JSON array of matched keywords
+    hr_reasoning    TEXT,                   -- HR-specific explanation
+    is_read         INTEGER DEFAULT 0       -- 0 = unread, 1 = read
 );
 
 -- Indexes for fast filtering
@@ -171,6 +179,9 @@ CREATE INDEX IF NOT EXISTS idx_email_type ON emails(email_type_label);
 CREATE INDEX IF NOT EXISTS idx_priority   ON emails(priority_label);
 CREATE INDEX IF NOT EXISTS idx_action     ON emails(action_label);
 CREATE INDEX IF NOT EXISTS idx_dept       ON emails(dept_label);
+CREATE INDEX IF NOT EXISTS idx_hr_category ON emails(hr_category);
+CREATE INDEX IF NOT EXISTS idx_classification_mode ON emails(classification_mode);
+CREATE INDEX IF NOT EXISTS idx_is_read    ON emails(is_read);
 ```
 
 ### Data Flow Diagram

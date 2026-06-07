@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Calendar, DollarSign, Users, LogOut, FileText, Inbox,
+  Calendar, DollarSign, Users, LogOut, FileText, Inbox, Mail,
   Search, Download,
 } from 'lucide-react';
 import HREmailCard from './HREmailCard';
@@ -23,7 +23,7 @@ const HR_CATEGORIES = [
  *   onRefresh: function
  *   loading:   boolean
  */
-export default function HRDashboard({ emails, darkMode }) {
+export default function HRDashboard({ emails, darkMode, onMarkRead }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState(
     HR_CATEGORIES.map(c => c.id)
@@ -35,8 +35,24 @@ export default function HRDashboard({ emails, darkMode }) {
   const textMain = darkMode ? 'text-stone-100' : 'text-stone-900';
   const textSub = darkMode ? 'text-stone-400' : 'text-stone-500';
 
-  // Filtered emails
+  // Filtered emails (hide read emails)
   const filtered = useMemo(() => {
+    return emails.filter(email => {
+      // Skip read emails
+      if (email.is_read) return false;
+      if (!selectedCategories.includes(email.hr_category)) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (email.subject && email.subject.toLowerCase().includes(q)) ||
+        (email.sender && email.sender.toLowerCase().includes(q)) ||
+        (email.hr_reasoning && email.hr_reasoning.toLowerCase().includes(q))
+      );
+    });
+  }, [emails, selectedCategories, searchQuery]);
+
+  // All HR emails matching filters (including read) — for "Total HR" metric
+  const allHrFiltered = useMemo(() => {
     return emails.filter(email => {
       if (!selectedCategories.includes(email.hr_category)) return false;
       if (!searchQuery) return true;
@@ -56,8 +72,8 @@ export default function HRDashboard({ emails, darkMode }) {
     filtered.forEach(e => {
       if (counts[e.hr_category] !== undefined) counts[e.hr_category]++;
     });
-    return { total: filtered.length, ...counts };
-  }, [filtered]);
+    return { total: allHrFiltered.length, unread: filtered.length, ...counts };
+  }, [filtered, allHrFiltered]);
 
   // Pie chart data
   const chartData = useMemo(() => {
@@ -146,6 +162,15 @@ export default function HRDashboard({ emails, darkMode }) {
             <div className="text-2xl font-bold text-indigo-500">{stats.total}</div>
           </div>
 
+          {/* Unread */}
+          <div className={`rounded-xl p-4 border transition-colors ${bgCard} ${borderCol}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-sm ${textSub}`}>Unread</span>
+              <Mail className="w-4 h-4 text-sky-500" />
+            </div>
+            <div className="text-2xl font-bold text-sky-500">{stats.unread}</div>
+          </div>
+
           {/* Category cards */}
           {HR_CATEGORIES.map(cat => {
             const Icon = cat.icon;
@@ -204,7 +229,7 @@ export default function HRDashboard({ emails, darkMode }) {
         {/* Email Cards */}
         <div className="space-y-3">
           {filtered.slice(0, 100).map((email) => (
-            <HREmailCard key={email.id} email={email} darkMode={darkMode} />
+            <HREmailCard key={email.id} email={email} darkMode={darkMode} onMarkRead={onMarkRead} />
           ))}
           {filtered.length === 0 && (
             <div className={`text-center py-12 ${textSub}`}>

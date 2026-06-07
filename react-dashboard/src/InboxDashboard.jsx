@@ -115,12 +115,24 @@ const TAG_BG = {
   }
 };
 
-// ── API helper ──────────────────────────────────────────────────────
+// ── API helpers ─────────────────────────────────────────────────────
 const API_BASE = '/api';
 
 async function fetchEmails(mode = 'standard') {
   const url = mode === 'hr' ? `${API_BASE}/emails?mode=hr` : `${API_BASE}/emails`;
   const res = await fetch(url);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json();
+}
+
+async function apiMarkRead(emailId) {
+  const res = await fetch(`${API_BASE}/emails/${emailId}/read`, { method: 'PATCH' });
+  if (!res.ok) throw new Error(`Failed to mark read: ${res.status}`);
+  return res.json();
+}
+
+async function fetchUnreadCounts() {
+  const res = await fetch(`${API_BASE}/unread-count`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -196,6 +208,7 @@ export default function InboxDashboard() {
   const [error, setError] = useState(null);
   const [lastSync, setLastSync] = useState(null);
   const [sortBy, setSortBy] = useState('Priority (urgent first)');
+  const [unreadCounts, setUnreadCounts] = useState({ total: 0, standard: 0, hr: 0 });
   const [searchQuery, setSearchQuery] = useState('');
 
   // Classification mode state
@@ -228,38 +241,37 @@ export default function InboxDashboard() {
     }
   }, []);
 
-  // Fetch emails from the API on mount and when mode changes
-  const loadEmails = useCallback(async (mode) => {
-    const currentMode = mode || classificationMode;
+  // Fetch ALL emails (both modes) from the API
+  const loadAllData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      if (currentMode === 'hr') {
-        const hrEmails = await fetchEmails('hr');
-        setHrData(hrEmails);
-      } else {
-        const emails = await fetchEmails('standard');
-        setData(emails);
-      }
+      const [stdEmails, hrEmails, counts] = await Promise.all([
+        fetchEmails('standard'),
+        fetchEmails('hr'),
+        fetchUnreadCounts(),
+      ]);
+      setData(stdEmails);
+      setHrData(hrEmails);
+      setUnreadCounts(counts);
       setLastSync(new Date());
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [classificationMode]);
+  }, []);
 
   useEffect(() => {
-    loadEmails();
-  }, [loadEmails]);
+    loadAllData();
+  }, [loadAllData]);
 
   // Toggle mode handler
   const handleToggleMode = useCallback(() => {
     const newMode = classificationMode === 'standard' ? 'hr' : 'standard';
     setClassificationMode(newMode);
     sessionStorage.setItem('classification_mode', newMode);
-    loadEmails(newMode);
-  }, [classificationMode, loadEmails]);
+  }, [classificationMode]);
 
   // Theme helpers
   const bgMain = darkMode ? 'bg-stone-950' : 'bg-stone-50';
@@ -270,9 +282,11 @@ export default function InboxDashboard() {
   const chartGrid = darkMode ? '#292524' : '#e7e5e4';
   const chartText = darkMode ? '#a8a29e' : '#57534e';
 
-  // Filtered data
+  // Filtered data (hide read emails)
   const filtered = useMemo(() => {
     return data.filter(d => {
+      // Skip read emails
+      if (d.is_read) return false;
       const matchesTags = selEmailType.includes(d.email_type_label) &&
                           selAction.includes(d.action_label) &&
                           selDept.includes(d.dept_label) &&
@@ -358,13 +372,51 @@ export default function InboxDashboard() {
     return Object.values(daily).sort((a, b) => a.date.localeCompare(b.date));
   }, [filtered]);
 
+  // All emails matching filters (including read) — used for "Total emails" metric
+  const allMatchingFilters = useMemo(() => {
+    return data.filter(d => {
+      const matchesTags = selEmailType.includes(d.email_type_label) &&
+                          selAction.includes(d.action_label) &&
+                          selDept.includes(d.dept_label) &&
+                          selPriority.includes(d.priority_label);
+      if (!matchesTags) return false;
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (d.subject && d.subject.toLowerCase().includes(q)) ||
+        (d.sender && d.sender.toLowerCase().includes(q)) ||
+        (d.reason && d.reason.toLowerCase().includes(q))
+      );
+    });
+  }, [data, selEmailType, selAction, selDept, selPriority, searchQuery]);
+
   // Stats
-  const total = filtered.length;
+  const total = allMatchingFilters.length;
   const spamCount = filtered.filter(d => d.email_type_label === 'SPAM').length;
   const urgentCount = filtered.filter(d => d.priority_label === 'URGENT').length;
   const actionCount = filtered.filter(d => d.action_label === 'ACTION_REQUIRED').length;
   const awaitingCount = filtered.filter(d => d.action_label === 'AWAITING_REPLY').length;
   const failedCount = filtered.filter(d => d.status === 'failed').length;
+  const unreadCount = filtered.length;
+
+  // Mark email as read (optimistic UI)
+  const handleMarkRead = useCallback(async (emailId) => {
+    // Optimistic update — immediately mark as read in local state
+    setData(prev => prev.map(e => e.id === emailId ? { ...e, is_read: 1 } : e));
+    setHrData(prev => prev.map(e => e.id === emailId ? { ...e, is_read: 1 } : e));
+    setUnreadCounts(prev => ({
+      total: Math.max(0, prev.total - 1),
+      standard: Math.max(0, prev.standard - 1),
+      hr: Math.max(0, prev.hr - 1),
+    }));
+    try {
+      await apiMarkRead(emailId);
+    } catch (err) {
+      console.error('Failed to mark email as read:', err);
+      // Revert on failure
+      loadAllData();
+    }
+  }, [loadAllData]);
 
   // Handlers
   const handleRefresh = useCallback(async () => {
@@ -384,9 +436,9 @@ export default function InboxDashboard() {
       console.error("Network error during classification", err);
       setError(`Refresh failed: ${err.message}. Ensure backend is running.`);
     }
-    // Always reload data from SQLite afterwards
-    await loadEmails();
-  }, [loadEmails, classificationMode]);
+    // Always reload ALL data from SQLite afterwards
+    await loadAllData();
+  }, [loadAllData, classificationMode]);
 
   const handleExport = useCallback(() => {
     const headers = ['subject', 'sender', 'email_type_label', 'action_label', 'dept_label', 'priority_label', 'reason', 'received_at'];
@@ -511,7 +563,7 @@ export default function InboxDashboard() {
 
           {/* HR Dashboard */}
           {(!loading || hrData.length > 0) && (
-            <HRDashboard emails={hrData} darkMode={darkMode} />
+            <HRDashboard emails={hrData} darkMode={darkMode} onMarkRead={handleMarkRead} />
           )}
         </>
       ) : (
@@ -591,8 +643,9 @@ export default function InboxDashboard() {
           {data.length > 0 && (
             <>
               {/* Metrics */}
-              <div className="grid grid-cols-6 gap-4 mb-6">
+              <div className="grid grid-cols-7 gap-4 mb-6">
                 <MetricCard label="Total emails" value={total} icon={Inbox} colorClass="text-sky-500" darkMode={darkMode} />
+                <MetricCard label="Unread" value={unreadCount} icon={Mail} colorClass="text-indigo-500" darkMode={darkMode} />
                 <MetricCard label="Spam" value={spamCount} icon={AlertTriangle} colorClass="text-red-500" darkMode={darkMode} />
                 <MetricCard label="Urgent" value={urgentCount} icon={AlertTriangle} colorClass="text-red-500" darkMode={darkMode} />
                 <MetricCard label="Action req" value={actionCount} icon={CheckCircle} colorClass="text-green-500" darkMode={darkMode} />
@@ -773,20 +826,34 @@ export default function InboxDashboard() {
 
               {/* Email Cards */}
               <div className="space-y-3">
-                {sorted.slice(0, 100).map((row) => (
-                  <div key={row.id} className={`rounded-xl border p-4 transition-colors hover:shadow-md ${bgCard} ${borderCol}`}>
-                    <div className={`text-xs mb-1 ${textSub}`}>{row.sender} · {row.sender_email}</div>
-                    <div className={`text-sm font-semibold mb-1 ${textMain}`}>{row.subject}</div>
-                    {row.snippet && <div className={`text-sm mb-2 line-clamp-2 ${darkMode ? 'text-stone-400' : 'text-stone-600'}`}>{row.snippet}</div>}
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      <Tag label={EMAIL_TYPE_DISPLAY[row.email_type_label] || row.email_type_label} value={row.email_type_label} darkMode={darkMode} />
-                      <Tag label={ACTION_DISPLAY[row.action_label] || row.action_label} value={row.action_label} darkMode={darkMode} />
-                      <Tag label={DEPT_DISPLAY[row.dept_label] || row.dept_label} value={row.dept_label} darkMode={darkMode} />
-                      <Tag label={PRIORITY_DISPLAY[row.priority_label] || row.priority_label} value={row.priority_label} darkMode={darkMode} />
+                {sorted.slice(0, 100).map((row) => {
+                  const isRead = !!row.is_read;
+                  return (
+                    <div
+                      key={row.id}
+                      onClick={() => !isRead && handleMarkRead(row.id)}
+                      className={`rounded-xl border p-4 transition-all hover:shadow-md cursor-pointer ${bgCard} ${borderCol} ${
+                        isRead ? 'opacity-70' : `border-l-4 ${row.priority_label === 'URGENT' ? 'border-l-red-500' : 'border-l-sky-500'}`
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className={`text-xs mb-1 ${textSub}`}>{row.sender} · {row.sender_email}</div>
+                        {!isRead && (
+                          <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${row.priority_label === 'URGENT' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-sky-500'}`} title="Unread" />
+                        )}
+                      </div>
+                      <div className={`text-sm mb-1 ${textMain} ${isRead ? 'font-normal' : 'font-semibold'}`}>{row.subject}</div>
+                      {row.snippet && <div className={`text-sm mb-2 line-clamp-2 ${darkMode ? 'text-stone-400' : 'text-stone-600'}`}>{row.snippet}</div>}
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <Tag label={EMAIL_TYPE_DISPLAY[row.email_type_label] || row.email_type_label} value={row.email_type_label} darkMode={darkMode} />
+                        <Tag label={ACTION_DISPLAY[row.action_label] || row.action_label} value={row.action_label} darkMode={darkMode} />
+                        <Tag label={DEPT_DISPLAY[row.dept_label] || row.dept_label} value={row.dept_label} darkMode={darkMode} />
+                        <Tag label={PRIORITY_DISPLAY[row.priority_label] || row.priority_label} value={row.priority_label} darkMode={darkMode} />
+                      </div>
+                      <div className={`text-xs ${textSub}`}>{row.reason}</div>
                     </div>
-                    <div className={`text-xs ${textSub}`}>{row.reason}</div>
-                  </div>
-                ))}
+                  );
+                })}
                 {sorted.length === 0 && (
                   <div className={`text-center py-12 ${textSub}`}>No emails match the selected filters.</div>
                 )}

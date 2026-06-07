@@ -64,6 +64,7 @@ def migrate_hr_columns() -> None:
         ("hr_matched_keywords", "TEXT"),
         ("classification_mode", "TEXT DEFAULT 'standard'"),
         ("hr_reasoning",        "TEXT"),
+        ("is_read",             "INTEGER DEFAULT 0"),
     ]
 
     with _conn() as con:
@@ -77,6 +78,7 @@ def migrate_hr_columns() -> None:
         # Add indexes (idempotent via IF NOT EXISTS)
         con.execute("CREATE INDEX IF NOT EXISTS idx_hr_category ON emails(hr_category)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_classification_mode ON emails(classification_mode)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_is_read ON emails(is_read)")
 
 
 def upsert_email(record: dict) -> None:
@@ -99,6 +101,31 @@ def bulk_upsert(records: list[dict]) -> None:
     logger.info("Upserted {} email records.", len(records))
 
 
+def mark_as_read(email_id: str) -> bool:
+    """Mark a single email as read. Returns True if a row was updated."""
+    with _conn() as con:
+        cur = con.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
+        updated = cur.rowcount > 0
+    if updated:
+        logger.debug("Marked email {} as read.", email_id)
+    return updated
+
+
+def get_unread_count(mode: str | None = None) -> int:
+    """Return count of unread emails, optionally filtered by classification mode."""
+    with _conn() as con:
+        if mode == "hr":
+            cur = con.execute(
+                "SELECT COUNT(*) FROM emails WHERE is_read = 0 "
+                "AND classification_mode = 'hr' AND hr_category IS NOT NULL AND hr_category != 'NON_HR'"
+            )
+        elif mode == "standard":
+            cur = con.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0 AND (classification_mode = 'standard' OR classification_mode IS NULL)")
+        else:
+            cur = con.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0")
+        return cur.fetchone()[0]
+
+
 def load_all() -> pd.DataFrame:
     """Return all classified emails as a DataFrame."""
     with _conn() as con:
@@ -109,6 +136,16 @@ def load_unread_ids() -> set[str]:
     """Return the set of email IDs already in the database."""
     with _conn() as con:
         cur = con.execute("SELECT id FROM emails")
+        return {row[0] for row in cur.fetchall()}
+
+
+def load_standard_classified_ids() -> set[str]:
+    """Return the set of email IDs already classified in standard mode."""
+    with _conn() as con:
+        cur = con.execute(
+            "SELECT id FROM emails WHERE classification_mode = 'standard' "
+            "AND status IN ('classified', 'failed')"
+        )
         return {row[0] for row in cur.fetchall()}
 
 

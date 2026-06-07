@@ -25,10 +25,12 @@ Inbox Intel is a **3-tier local application**:
 │                              API / SERVICE LAYER                            │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
 │  │  FastAPI Server (Port 8000)                                             ││
-│  │  ├── /api/emails     → data.store.load_all()                            ││
-│  │  ├── /api/stats      → data.store.get_stats()                           ││
-│  │  ├── /api/health     → {"status": "ok"}                                 ││
-│  │  └── /api/classify   → scripts.run.run_classification()                 ││
+│  │  ├── /api/emails               → data.store.load_all()                  ││
+│  │  ├── /api/stats                → data.store.get_stats()                 ││
+│  │  ├── /api/unread-count         → data.store.get_unread_count()          ││
+│  │  ├── /api/health               → {"status": "ok"}                       ││
+│  │  ├── PATCH /api/emails/{id}/read → data.store.mark_as_read()            ││
+│  │  └── POST /api/classify        → scripts.run.run_classification()       ││
 │  └─────────────────────────────────────────────────────────────────────────┘│
 │           │                                                                 │
 │           │  Python imports                                                 │
@@ -157,21 +159,27 @@ SQLite is a **single-table design** — no foreign keys, no joins needed.
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              emails TABLE                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  id (PK)          │ TEXT │ Gmail message ID                                  │
-│  thread_id        │ TEXT │ Gmail thread ID (for grouping conversations)      │
-│  subject          │ TEXT │ Email subject line                                │
-│  sender           │ TEXT │ Display name (e.g., "John Doe")                   │
-│  sender_email     │ TEXT │ Email address (e.g., "john@example.com")          │
-│  snippet          │ TEXT │ Gmail-generated preview text                      │
-│  received_at      │ TEXT │ Date string from email headers                    │
-│  email_type_label │ TEXT │ FK-like: EmailTypeLabel enum                      │
-│  action_label     │ TEXT │ FK-like: ActionLabel enum                         │
-│  dept_label       │ TEXT │ FK-like: DepartmentLabel enum                     │
-│  priority_label   │ TEXT │ FK-like: PriorityLabel enum                       │
-│  reason           │ TEXT │ LLM explanation (free text)                         │
-│  classified_at    │ TEXT │ ISO timestamp                                       │
-│  retry_count      │ INT  │ Number of LLM retry attempts                        │
-│  status           │ TEXT │ 'classified' | 'failed'                             │
+│  id (PK)             │ TEXT │ Gmail message ID                                  │
+│  thread_id           │ TEXT │ Gmail thread ID (for grouping conversations)      │
+│  subject             │ TEXT │ Email subject line                                │
+│  sender              │ TEXT │ Display name (e.g., "John Doe")                   │
+│  sender_email        │ TEXT │ Email address (e.g., "john@example.com")          │
+│  snippet             │ TEXT │ Gmail-generated preview text                      │
+│  received_at         │ TEXT │ Date string from email headers                    │
+│  email_type_label    │ TEXT │ FK-like: EmailTypeLabel enum                      │
+│  action_label        │ TEXT │ FK-like: ActionLabel enum                         │
+│  dept_label          │ TEXT │ FK-like: DepartmentLabel enum                     │
+│  priority_label      │ TEXT │ FK-like: PriorityLabel enum                       │
+│  reason              │ TEXT │ LLM explanation (free text)                         │
+│  classified_at       │ TEXT │ ISO timestamp                                       │
+│  retry_count         │ INT  │ Number of LLM retry attempts                        │
+│  status              │ TEXT │ 'classified' | 'failed'                             │
+│  classification_mode │ TEXT │ 'standard' | 'hr'                                   │
+│  hr_category         │ TEXT │ HR sub-category                                     │
+│  hr_confidence       │ REAL │ Keyword confidence                                  │
+│  hr_matched_keywords │ TEXT │ JSON array of matched keywords                     │
+│  hr_reasoning        │ TEXT │ HR-specific explanation                             │
+│  is_read             │ INT  │ 0 = unread, 1 = read                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -312,10 +320,12 @@ classify_node: adds labels + reason, sets status="classified" OR increments retr
 ```
 Global UI State:
   darkMode          → toggles Tailwind dark classes
-  data              → raw emails from /api/emails
+  data              → raw standard emails from /api/emails
+  hrData            → raw HR emails from /api/emails?mode=hr
   loading           → shows spinner
   error             → shows error card
   lastSync          → timestamp of last fetch
+  unreadCounts      → { total, standard, hr } counts from API
 
 Filter State:
   selEmailType      → multi-select filter (array of keys)

@@ -13,10 +13,13 @@ from typing import Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from data.store import load_all, get_stats, init_db, load_hr_emails, get_hr_stats
+from data.store import (
+    load_all, get_stats, init_db, load_hr_emails, get_hr_stats,
+    mark_as_read, get_unread_count,
+)
 
 app = FastAPI(title="Inbox Intel API", version="1.0.0")
 
@@ -59,6 +62,25 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/unread-count")
+def unread_count(mode: Optional[str] = Query(None)):
+    """Return the number of unread emails, optionally filtered by mode."""
+    return {
+        "total": get_unread_count(),
+        "standard": get_unread_count("standard"),
+        "hr": get_unread_count("hr"),
+    }
+
+
+@app.patch("/api/emails/{email_id}/read")
+def mark_email_read(email_id: str):
+    """Mark a single email as read."""
+    updated = mark_as_read(email_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Email not found")
+    return {"status": "ok", "id": email_id}
+
+
 class ClassifyRequest(BaseModel):
     mode: str = "standard"
     reclassify_all: bool = False
@@ -73,4 +95,5 @@ def classify(req: ClassifyRequest = ClassifyRequest()):
         return {"status": "success", "message": f"Classification complete (mode: {req.mode})."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
 

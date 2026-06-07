@@ -146,6 +146,13 @@
 - **Rationale**: Support domain-specific HR categorizations (Leave, Payroll, Recruitment, Offboard, Admin) with higher accuracy.
 - **Impact**: Extends the platform to handle specific HR domain contexts alongside the standard 4-dimension classification.
 
+#### [✅] Added — Read/Unread State Tracking
+- **Date**: 2026-06-04
+- **Change**: Introduced `is_read` column in SQLite with an index, and added `/api/emails/{id}/read` + `/api/unread-count` endpoints.
+- **Features**: Frontend click-to-read functionality, optimistic UI updates, unread metric cards, and filtering to hide read emails from lists.
+- **Rationale**: Users need to track which classified emails have been triaged.
+- **Impact**: Improves workflow by removing triaged emails from the active dashboard view while keeping them in the database for stats.
+
 ---
 
 ## Pending / Planned Changes

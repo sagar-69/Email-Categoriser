@@ -13,29 +13,47 @@ const HR_CATEGORY_CONFIG = {
  * HREmailCard — Renders an individual email card in HR mode.
  *
  * Props:
- *   email:    object with hr_category, hr_confidence, hr_reasoning, subject, sender, etc.
- *   darkMode: boolean
+ *   email:      object with hr_category, hr_confidence, hr_reasoning, subject, sender, etc.
+ *   darkMode:   boolean
+ *   onMarkRead: (emailId) => void — called when an unread email is clicked
  */
-export default function HREmailCard({ email, darkMode }) {
+export default function HREmailCard({ email, darkMode, onMarkRead }) {
   const cat = HR_CATEGORY_CONFIG[email.hr_category] || HR_CATEGORY_CONFIG.HR_ADMIN;
   const Icon = cat.icon;
   const confidence = parseFloat(email.hr_confidence) || 0;
+  const isRead = !!email.is_read;
 
   const bgCard = darkMode ? 'bg-stone-900' : 'bg-white';
   const borderCol = darkMode ? 'border-stone-800' : 'border-stone-200';
   const textMain = darkMode ? 'text-stone-100' : 'text-stone-900';
   const textSub = darkMode ? 'text-stone-400' : 'text-stone-500';
 
+  const handleClick = () => {
+    if (!isRead && onMarkRead) {
+      onMarkRead(email.id);
+    }
+  };
+
   return (
-    <div className={`rounded-xl border p-4 transition-colors hover:shadow-md ${bgCard} ${borderCol}`}>
+    <div
+      onClick={handleClick}
+      className={`rounded-xl border p-4 transition-all hover:shadow-md cursor-pointer ${bgCard} ${borderCol} ${
+        isRead ? 'opacity-70' : 'border-l-4 border-l-amber-500'
+      }`}
+    >
       <div className="flex items-start justify-between gap-4">
         {/* Left: Email content */}
         <div className="flex-1 min-w-0">
-          <div className={`text-xs mb-1 ${textSub}`}>
-            {email.sender} · {email.sender_email}
+          <div className="flex items-center justify-between">
+            <div className={`text-xs mb-1 ${textSub}`}>
+              {email.sender} · {email.sender_email}
+            </div>
+            {!isRead && (
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 flex-shrink-0 ml-2" title="Unread" />
+            )}
           </div>
           <div className="flex items-center gap-2 mb-1">
-            <div className={`text-sm font-semibold truncate ${textMain}`}>
+            <div className={`text-sm truncate ${textMain} ${isRead ? 'font-normal' : 'font-semibold'}`}>
               {email.subject}
             </div>
             {confidence > 0.8 && (
