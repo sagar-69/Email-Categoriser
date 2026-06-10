@@ -6,7 +6,7 @@ import {
 import {
   Mail, RefreshCw, Moon, Sun, Download, Filter,
   AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search,
-  ToggleLeft, ToggleRight, Briefcase, Brain
+  ToggleLeft, ToggleRight, Briefcase, Brain, LogIn, ChevronDown, UserCircle, LogOut, Plus, Trash2
 } from 'lucide-react';
 import ClassificationModeModal from './ClassificationModeModal';
 import HRDashboard from './HRDashboard';
@@ -118,9 +118,15 @@ const TAG_BG = {
 // ── API helpers ─────────────────────────────────────────────────────
 const API_BASE = '/api';
 
-async function fetchEmails(mode = 'standard') {
-  const url = mode === 'hr' ? `${API_BASE}/emails?mode=hr` : `${API_BASE}/emails`;
-  const res = await fetch(url);
+function buildQuery(params) {
+  const filtered = Object.entries(params).filter(([, v]) => v != null && v !== '');
+  if (filtered.length === 0) return '';
+  return '?' + filtered.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+}
+
+async function fetchEmails(mode = 'standard', ownerEmail = null) {
+  const query = buildQuery({ mode: mode === 'hr' ? 'hr' : undefined, owner_email: ownerEmail });
+  const res = await fetch(`${API_BASE}/emails${query}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -131,8 +137,9 @@ async function apiMarkRead(emailId) {
   return res.json();
 }
 
-async function fetchUnreadCounts() {
-  const res = await fetch(`${API_BASE}/unread-count`);
+async function fetchUnreadCounts(ownerEmail = null) {
+  const query = buildQuery({ owner_email: ownerEmail });
+  const res = await fetch(`${API_BASE}/unread-count${query}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -200,7 +207,7 @@ const CustomTooltip = ({ active, payload, label, darkMode }) => {
 
 // ── Main Dashboard ──────────────────────────────────────────────────
 
-export default function InboxDashboard() {
+export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = [], onSelectAccount, onLogin, onRemoveAccount }) {
   const [darkMode, setDarkMode] = useState(false);
   const [data, setData] = useState([]);
   const [hrData, setHrData] = useState([]);
@@ -210,6 +217,7 @@ export default function InboxDashboard() {
   const [sortBy, setSortBy] = useState('Priority (urgent first)');
   const [unreadCounts, setUnreadCounts] = useState({ total: 0, standard: 0, hr: 0 });
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
 
   // Classification mode state
   const [showModal, setShowModal] = useState(false);
@@ -247,9 +255,9 @@ export default function InboxDashboard() {
     setError(null);
     try {
       const [stdEmails, hrEmails, counts] = await Promise.all([
-        fetchEmails('standard'),
-        fetchEmails('hr'),
-        fetchUnreadCounts(),
+        fetchEmails('standard', ownerEmail),
+        fetchEmails('hr', ownerEmail),
+        fetchUnreadCounts(ownerEmail),
       ]);
       setData(stdEmails);
       setHrData(hrEmails);
@@ -260,7 +268,7 @@ export default function InboxDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [ownerEmail]);
 
   useEffect(() => {
     loadAllData();
@@ -427,7 +435,7 @@ export default function InboxDashboard() {
       const res = await fetch(`${API_BASE}/classify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: classificationMode, reclassify_all: false }),
+        body: JSON.stringify({ mode: classificationMode, reclassify_all: false, owner_email: ownerEmail }),
       });
       if (!res.ok) {
         throw new Error(`Classification failed: ${res.status}`);
@@ -438,7 +446,7 @@ export default function InboxDashboard() {
     }
     // Always reload ALL data from SQLite afterwards
     await loadAllData();
-  }, [loadAllData, classificationMode]);
+  }, [loadAllData, classificationMode, ownerEmail]);
 
   const handleExport = useCallback(() => {
     const headers = ['subject', 'sender', 'email_type_label', 'action_label', 'dept_label', 'priority_label', 'reason', 'received_at'];
@@ -486,7 +494,7 @@ export default function InboxDashboard() {
         darkMode={darkMode}
       />
 
-      {/* Mode Toggle Banner */}
+      {/* Mode Toggle Banner + Account Switcher */}
       <div className={`w-full px-6 py-3 border-b flex items-center justify-between transition-colors ${
         classificationMode === 'hr'
           ? 'bg-amber-50 border-amber-300 dark:bg-amber-900/20 dark:border-amber-700'
@@ -508,16 +516,147 @@ export default function InboxDashboard() {
             }
           </span>
         </div>
-        <button
-          onClick={handleToggleMode}
-          className="flex items-center gap-2 transition-colors"
-          title={`Switch to ${classificationMode === 'hr' ? 'Standard' : 'HR'} mode`}
-        >
-          {classificationMode === 'hr'
-            ? <ToggleRight className="w-8 h-8 text-amber-600" />
-            : <ToggleLeft className={`w-8 h-8 ${darkMode ? 'text-stone-500' : 'text-stone-400'}`} />
-          }
-        </button>
+        <div className="flex items-center gap-4">
+          {/* Account Switcher */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowAccountMenu(!showAccountMenu); }}
+              className={`flex items-center gap-2.5 px-3 py-1.5 rounded-xl border text-sm transition-all duration-200 ${
+                darkMode
+                  ? 'bg-stone-800/80 border-stone-700 text-stone-300 hover:bg-stone-700 hover:border-stone-600'
+                  : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50 hover:border-stone-300'
+              }`}
+            >
+              {ownerAccount?.picture ? (
+                <img
+                  src={ownerAccount.picture}
+                  alt={ownerAccount.name || ownerEmail}
+                  className="w-6 h-6 rounded-full object-cover ring-2 ring-sky-500/30"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-sky-400 to-indigo-500 flex items-center justify-center text-[10px] font-bold text-white">
+                  {(ownerEmail || '?')[0].toUpperCase()}
+                </div>
+              )}
+              <span className="max-w-[160px] truncate font-medium">
+                {ownerAccount?.name || ownerEmail || 'No account'}
+              </span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showAccountMenu ? 'rotate-180' : ''}`} />
+            </button>
+            {showAccountMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div className="fixed inset-0 z-40" onClick={() => { setShowAccountMenu(false); }} />
+                <div className={`absolute right-0 top-full mt-2 w-80 rounded-2xl border shadow-2xl z-50 overflow-hidden transition-all ${
+                  darkMode ? 'bg-stone-800 border-stone-700' : 'bg-white border-stone-200'
+                }`}
+                  style={{ animation: 'dropdownSlide 0.2s ease-out' }}
+                >
+                  <div className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] ${
+                    darkMode ? 'text-stone-500 border-b border-stone-700/50' : 'text-stone-400 border-b border-stone-100'
+                  }`}>Linked Accounts</div>
+                  <div className="py-1">
+                    {accounts.map(acct => {
+                      const email = acct.email;
+                      const isActive = email === ownerEmail;
+                      return (
+                        <div
+                          key={email}
+                          className={`flex items-center justify-between px-3 py-2 mx-1.5 my-0.5 rounded-xl transition-all duration-200 cursor-pointer group ${
+                            isActive
+                              ? darkMode ? 'bg-sky-900/25' : 'bg-sky-50'
+                              : darkMode ? 'hover:bg-stone-700/60' : 'hover:bg-stone-50'
+                          }`}
+                          onClick={() => { onSelectAccount(email); setShowAccountMenu(false); }}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            {acct.picture ? (
+                              <img
+                                src={acct.picture}
+                                alt={acct.name || email}
+                                className={`w-8 h-8 rounded-full object-cover flex-shrink-0 ring-2 transition-all ${
+                                  isActive ? 'ring-sky-500/50' : 'ring-transparent'
+                                }`}
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                isActive
+                                  ? 'bg-gradient-to-br from-sky-400 to-indigo-500 text-white'
+                                  : darkMode ? 'bg-stone-600 text-stone-300' : 'bg-stone-200 text-stone-600'
+                              }`}>{email[0].toUpperCase()}</div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              {acct.name && (
+                                <div className={`text-sm font-medium truncate ${
+                                  isActive
+                                    ? darkMode ? 'text-sky-300' : 'text-sky-700'
+                                    : darkMode ? 'text-stone-200' : 'text-stone-800'
+                                }`}>{acct.name}</div>
+                              )}
+                              <div className={`text-xs truncate ${
+                                isActive
+                                  ? darkMode ? 'text-sky-400/70' : 'text-sky-600/70'
+                                  : darkMode ? 'text-stone-500' : 'text-stone-400'
+                              }`}>{email}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {isActive && (
+                              <span className="w-2 h-2 rounded-full bg-sky-500 shadow-[0_0_6px_rgba(14,165,233,0.5)]" />
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveAccount(email);
+                                setShowAccountMenu(false);
+                              }}
+                              className={`p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 ${
+                                darkMode ? 'text-stone-500 hover:text-red-400 hover:bg-red-400/10' : 'text-stone-400 hover:text-red-500 hover:bg-red-50'
+                              }`}
+                              title="Remove account"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className={`border-t mx-3 ${
+                    darkMode ? 'border-stone-700/50' : 'border-stone-100'
+                  }`}>
+                    <button
+                      onClick={() => { onLogin(); setShowAccountMenu(false); }}
+                      className={`w-full text-left px-3 py-2.5 my-1 mx-0 rounded-xl flex items-center gap-2.5 text-sm font-medium transition-all duration-200 ${
+                        darkMode ? 'text-emerald-400 hover:bg-emerald-400/10' : 'text-emerald-600 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        darkMode ? 'bg-emerald-400/10' : 'bg-emerald-50'
+                      }`}>
+                        <Plus className="w-4 h-4" />
+                      </div>
+                      Add Account
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          {/* Mode Toggle */}
+          <button
+            onClick={handleToggleMode}
+            className="flex items-center gap-2 transition-colors"
+            title={`Switch to ${classificationMode === 'hr' ? 'Standard' : 'HR'} mode`}
+          >
+            {classificationMode === 'hr'
+              ? <ToggleRight className="w-8 h-8 text-amber-600" />
+              : <ToggleLeft className={`w-8 h-8 ${darkMode ? 'text-stone-500' : 'text-stone-400'}`} />
+            }
+          </button>
+        </div>
       </div>
 
       {/* Conditional Rendering: HR Mode vs Standard Mode */}
@@ -650,7 +789,7 @@ export default function InboxDashboard() {
                 <MetricCard label="Urgent" value={urgentCount} icon={AlertTriangle} colorClass="text-red-500" darkMode={darkMode} />
                 <MetricCard label="Action req" value={actionCount} icon={CheckCircle} colorClass="text-green-500" darkMode={darkMode} />
                 <MetricCard label="Awaiting" value={awaitingCount} icon={Clock} colorClass="text-amber-500" darkMode={darkMode} />
-                <MetricCard label="Failed" value={failedCount} icon={XCircle} colorClass="text-stone-500" darkMode={darkMode} />
+                <MetricCard label="Others" value={failedCount} icon={XCircle} colorClass="text-stone-500" darkMode={darkMode} />
               </div>
 
               {/* Charts Row 1 */}

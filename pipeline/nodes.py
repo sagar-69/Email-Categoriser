@@ -132,6 +132,7 @@ def store_node(state: EmailState) -> dict:
         "reason":           state.get("reason", ""),
         "retry_count":      state.get("retry_count", 0),
         "status":           state.get("status", "failed"),
+        "owner_email":      state.get("owner_email", None),
     }
     upsert_email(record)
     return {}

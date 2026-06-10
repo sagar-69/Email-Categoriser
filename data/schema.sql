@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS emails (
     hr_matched_keywords  TEXT,
     classification_mode  TEXT DEFAULT 'standard',
     hr_reasoning         TEXT,
-    is_read              INTEGER DEFAULT 0
+    is_read              INTEGER DEFAULT 0,
+    owner_email          TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_type ON emails(email_type_label);
@@ -31,4 +32,5 @@ CREATE INDEX IF NOT EXISTS idx_dept       ON emails(dept_label);
 CREATE INDEX IF NOT EXISTS idx_hr_category ON emails(hr_category);
 CREATE INDEX IF NOT EXISTS idx_classification_mode ON emails(classification_mode);
 CREATE INDEX IF NOT EXISTS idx_is_read ON emails(is_read);
+CREATE INDEX IF NOT EXISTS idx_owner_email ON emails(owner_email);
 

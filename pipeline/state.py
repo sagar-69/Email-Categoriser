@@ -43,3 +43,6 @@ class EmailState(TypedDict):
     hr_prompt:            Optional[str]      # HR-specific prompt
     hr_raw_response:      Optional[str]      # Raw HR LLM response
 
+    # ── Multi-account fields ──────────────────────────────────────────────────
+    owner_email:          Optional[str]      # Google account email that fetched this email
+

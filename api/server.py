@@ -15,6 +15,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from data.store import (
     load_all, get_stats, init_db, load_hr_emails, get_hr_stats,
@@ -37,24 +38,74 @@ def startup():
     init_db()
 
 
+# ── Auth Endpoints ───────────────────────────────────────────────────────────
+
+@app.get("/api/auth/login")
+def auth_login():
+    """Redirect the user to Google's OAuth2 consent screen."""
+    from auth.gmail_auth import get_auth_url
+    try:
+        auth_url = get_auth_url()
+        return RedirectResponse(url=auth_url)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/auth/callback")
+def auth_callback(code: str = Query(...), error: Optional[str] = Query(None)):
+    """
+    Handle the OAuth2 callback from Google.
+    Exchanges the auth code for tokens, then redirects back to the React dashboard.
+    """
+    if error:
+        return RedirectResponse(url=f"http://localhost:5173?auth_error={error}")
+
+    from auth.gmail_auth import handle_auth_callback
+    try:
+        account_info = handle_auth_callback(code)
+        email = account_info.get("email", "unknown")
+        return RedirectResponse(url=f"http://localhost:5173?auth_email={email}")
+    except Exception as e:
+        return RedirectResponse(url=f"http://localhost:5173?auth_error={str(e)}")
+
+
+@app.get("/api/auth/accounts")
+def auth_accounts():
+    """Return a list of authenticated Google account email addresses."""
+    from auth.gmail_auth import list_authenticated_accounts
+    return {"accounts": list_authenticated_accounts()}
+
+
+@app.delete("/api/auth/accounts/{email}")
+def auth_remove_account(email: str):
+    """Remove a saved OAuth token for the given email."""
+    from auth.gmail_auth import remove_account
+    removed = remove_account(email)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"No token found for {email}")
+    return {"status": "ok", "removed": email}
+
+
+# ── Data Endpoints ───────────────────────────────────────────────────────────
+
 @app.get("/api/emails")
-def list_emails(mode: Optional[str] = Query(None)):
+def list_emails(mode: Optional[str] = Query(None), owner_email: Optional[str] = Query(None)):
     """Return classified emails as a list of dicts. Use ?mode=hr for HR emails."""
     if mode == "hr":
-        df = load_hr_emails()
+        df = load_hr_emails(owner_email=owner_email)
     else:
-        df = load_all()
+        df = load_all(owner_email=owner_email)
     # Replace NaN with None for JSON serialization
     df = df.where(df.notnull(), None)
     return df.to_dict(orient="records")
 
 
 @app.get("/api/stats")
-def stats(mode: Optional[str] = Query(None)):
+def stats(mode: Optional[str] = Query(None), owner_email: Optional[str] = Query(None)):
     """Return aggregated label counts. Use ?mode=hr for HR stats."""
     if mode == "hr":
-        return get_hr_stats()
-    return get_stats()
+        return get_hr_stats(owner_email=owner_email)
+    return get_stats(owner_email=owner_email)
 
 
 @app.get("/api/health")
@@ -63,12 +114,12 @@ def health():
 
 
 @app.get("/api/unread-count")
-def unread_count(mode: Optional[str] = Query(None)):
-    """Return the number of unread emails, optionally filtered by mode."""
+def unread_count(mode: Optional[str] = Query(None), owner_email: Optional[str] = Query(None)):
+    """Return the number of unread emails, optionally filtered by mode and owner."""
     return {
-        "total": get_unread_count(),
-        "standard": get_unread_count("standard"),
-        "hr": get_unread_count("hr"),
+        "total": get_unread_count(owner_email=owner_email),
+        "standard": get_unread_count("standard", owner_email=owner_email),
+        "hr": get_unread_count("hr", owner_email=owner_email),
     }
 
 
@@ -84,6 +135,7 @@ def mark_email_read(email_id: str):
 class ClassifyRequest(BaseModel):
     mode: str = "standard"
     reclassify_all: bool = False
+    owner_email: str | None = None
 
 
 @app.post("/api/classify")
@@ -91,9 +143,11 @@ def classify(req: ClassifyRequest = ClassifyRequest()):
     """Trigger the classification pipeline to fetch and classify new emails."""
     from scripts.run import run_classification
     try:
-        run_classification(mode=req.mode, reclassify_all=req.reclassify_all)
+        run_classification(
+            mode=req.mode,
+            reclassify_all=req.reclassify_all,
+            owner_email=req.owner_email,
+        )
         return {"status": "success", "message": f"Classification complete (mode: {req.mode})."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
-

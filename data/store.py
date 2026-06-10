@@ -65,6 +65,7 @@ def migrate_hr_columns() -> None:
         ("classification_mode", "TEXT DEFAULT 'standard'"),
         ("hr_reasoning",        "TEXT"),
         ("is_read",             "INTEGER DEFAULT 0"),
+        ("owner_email",         "TEXT"),
     ]
 
     with _conn() as con:
@@ -79,6 +80,7 @@ def migrate_hr_columns() -> None:
         con.execute("CREATE INDEX IF NOT EXISTS idx_hr_category ON emails(hr_category)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_classification_mode ON emails(classification_mode)")
         con.execute("CREATE INDEX IF NOT EXISTS idx_is_read ON emails(is_read)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_owner_email ON emails(owner_email)")
 
 
 def upsert_email(record: dict) -> None:
@@ -111,47 +113,69 @@ def mark_as_read(email_id: str) -> bool:
     return updated
 
 
-def get_unread_count(mode: str | None = None) -> int:
-    """Return count of unread emails, optionally filtered by classification mode."""
+def get_unread_count(mode: str | None = None, owner_email: str | None = None) -> int:
+    """Return count of unread emails, optionally filtered by classification mode and owner."""
     with _conn() as con:
         if mode == "hr":
-            cur = con.execute(
+            sql = (
                 "SELECT COUNT(*) FROM emails WHERE is_read = 0 "
                 "AND classification_mode = 'hr' AND hr_category IS NOT NULL AND hr_category != 'NON_HR'"
             )
+            params = []
         elif mode == "standard":
-            cur = con.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0 AND (classification_mode = 'standard' OR classification_mode IS NULL)")
+            sql = "SELECT COUNT(*) FROM emails WHERE is_read = 0 AND (classification_mode = 'standard' OR classification_mode IS NULL)"
+            params = []
         else:
-            cur = con.execute("SELECT COUNT(*) FROM emails WHERE is_read = 0")
+            sql = "SELECT COUNT(*) FROM emails WHERE is_read = 0"
+            params = []
+
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
+
+        cur = con.execute(sql, params)
         return cur.fetchone()[0]
 
 
-def load_all() -> pd.DataFrame:
-    """Return all classified emails as a DataFrame."""
+def load_all(owner_email: str | None = None) -> pd.DataFrame:
+    """Return all classified emails as a DataFrame, optionally filtered by owner."""
     with _conn() as con:
+        if owner_email:
+            return pd.read_sql_query(
+                "SELECT * FROM emails WHERE owner_email = ? ORDER BY received_at DESC",
+                con, params=[owner_email],
+            )
         return pd.read_sql_query("SELECT * FROM emails ORDER BY received_at DESC", con)
 
 
-def load_unread_ids() -> set[str]:
+def load_unread_ids(owner_email: str | None = None) -> set[str]:
     """Return the set of email IDs already in the database."""
     with _conn() as con:
-        cur = con.execute("SELECT id FROM emails")
+        if owner_email:
+            cur = con.execute("SELECT id FROM emails WHERE owner_email = ?", (owner_email,))
+        else:
+            cur = con.execute("SELECT id FROM emails")
         return {row[0] for row in cur.fetchall()}
 
 
-def load_standard_classified_ids() -> set[str]:
+def load_standard_classified_ids(owner_email: str | None = None) -> set[str]:
     """Return the set of email IDs already classified in standard mode."""
     with _conn() as con:
-        cur = con.execute(
+        sql = (
             "SELECT id FROM emails WHERE classification_mode = 'standard' "
             "AND status IN ('classified', 'failed')"
         )
+        params = []
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
+        cur = con.execute(sql, params)
         return {row[0] for row in cur.fetchall()}
 
 
-def get_stats() -> dict:
+def get_stats(owner_email: str | None = None) -> dict:
     """Return aggregated counts per label group."""
-    df = load_all()
+    df = load_all(owner_email=owner_email)
     if df.empty:
         return {"email_type": {}, "action": {}, "dept": {}, "priority": {}}
     return {
@@ -165,20 +189,24 @@ def get_stats() -> dict:
 
 # ── HR-specific query functions ──────────────────────────────────────────────
 
-def load_hr_emails() -> pd.DataFrame:
+def load_hr_emails(owner_email: str | None = None) -> pd.DataFrame:
     """Return emails classified in HR mode, excluding NON_HR."""
     with _conn() as con:
-        return pd.read_sql_query(
+        sql = (
             "SELECT * FROM emails WHERE classification_mode = 'hr' "
             "AND (hr_category IS NOT NULL AND hr_category != 'NON_HR') "
-            "ORDER BY received_at DESC",
-            con,
         )
+        params = []
+        if owner_email:
+            sql += "AND owner_email = ? "
+            params.append(owner_email)
+        sql += "ORDER BY received_at DESC"
+        return pd.read_sql_query(sql, con, params=params)
 
 
-def get_hr_stats() -> dict:
+def get_hr_stats(owner_email: str | None = None) -> dict:
     """Return aggregated counts for HR categories."""
-    df = load_hr_emails()
+    df = load_hr_emails(owner_email=owner_email)
     if df.empty:
         return {
             "total_hr": 0,
@@ -196,11 +224,22 @@ def get_hr_stats() -> dict:
     }
 
 
-def load_hr_unclassified_ids() -> set[str]:
+def load_hr_unclassified_ids(owner_email: str | None = None) -> set[str]:
     """Return IDs of emails not yet HR-classified."""
     with _conn() as con:
-        cur = con.execute(
-            "SELECT id FROM emails WHERE classification_mode != 'hr' OR classification_mode IS NULL"
-        )
+        sql = "SELECT id FROM emails WHERE classification_mode != 'hr' OR classification_mode IS NULL"
+        params = []
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
+        cur = con.execute(sql, params)
         return {row[0] for row in cur.fetchall()}
 
+
+def list_authenticated_accounts() -> list[str]:
+    """Return a list of unique owner_email values that have emails in the database."""
+    with _conn() as con:
+        cur = con.execute(
+            "SELECT DISTINCT owner_email FROM emails WHERE owner_email IS NOT NULL ORDER BY owner_email"
+        )
+        return [row[0] for row in cur.fetchall()]

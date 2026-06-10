@@ -24,10 +24,11 @@ from pipeline.graph import classify_batch
 console = Console()
 
 
-def run_classification(mode: str = "standard", reclassify_all: bool = False):
+def run_classification(mode: str = "standard", reclassify_all: bool = False, owner_email: str | None = None):
     mode_label = "HR" if mode == "hr" else "Standard"
-    console.rule(f"[bold]Step 1: Fetching unread emails from Gmail ({mode_label} mode)")
-    emails = fetch_unread_emails()
+    account_label = f" [{owner_email}]" if owner_email else ""
+    console.rule(f"[bold]Step 1: Fetching unread emails from Gmail ({mode_label} mode){account_label}")
+    emails = fetch_unread_emails(owner_email=owner_email)
 
     if not emails:
         console.print("[yellow]No unread emails found. Exiting.[/yellow]")
@@ -39,14 +40,14 @@ def run_classification(mode: str = "standard", reclassify_all: bool = False):
     else:
         # Skip emails already classified in the requested mode
         if mode == "hr":
-            existing_ids = load_hr_unclassified_ids()
+            existing_ids = load_hr_unclassified_ids(owner_email=owner_email)
             # For HR mode, we want to classify emails NOT yet HR-classified
             # load_hr_unclassified_ids returns IDs that still need HR classification
-            new_emails = [e for e in emails if e["id"] in existing_ids or e["id"] not in load_unread_ids()]
+            new_emails = [e for e in emails if e["id"] in existing_ids or e["id"] not in load_unread_ids(owner_email=owner_email)]
         else:
             # Only skip emails already classified in standard mode
             # Emails that exist only with HR classification should still be standard-classified
-            existing_ids = load_standard_classified_ids()
+            existing_ids = load_standard_classified_ids(owner_email=owner_email)
             new_emails = [e for e in emails if e["id"] not in existing_ids]
         console.print(f"  Total unread: {len(emails)}  |  New (not yet classified in {mode_label} mode): {len(new_emails)}")
 
@@ -55,7 +56,7 @@ def run_classification(mode: str = "standard", reclassify_all: bool = False):
         return
 
     console.rule(f"[bold]Step 2: Classifying via LangGraph + Ollama ({mode_label})")
-    results = classify_batch(new_emails, mode=mode)
+    results = classify_batch(new_emails, mode=mode, owner_email=owner_email)
 
     # Summary table
     classified = sum(1 for r in results if r.get("status") == "classified")
@@ -70,10 +71,10 @@ def run_classification(mode: str = "standard", reclassify_all: bool = False):
     console.print(table)
 
     if mode == "hr":
-        stats = get_hr_stats()
+        stats = get_hr_stats(owner_email=owner_email)
         console.print(f"\n[bold]HR Database totals:[/bold] {stats['total_hr']} HR emails classified")
     else:
-        stats = get_stats()
+        stats = get_stats(owner_email=owner_email)
         console.print(f"\n[bold]Database totals:[/bold] {stats['total']} emails classified")
 
 
@@ -92,12 +93,13 @@ if __name__ == "__main__":
                         help="Classification mode: standard (4-dim) or hr (5 HR categories)")
     parser.add_argument("--reclassify-all", action="store_true",
                         help="Re-classify all emails, not just new ones")
+    parser.add_argument("--owner-email", type=str, default=None,
+                        help="Email address of the Google account to use")
     args = parser.parse_args()
 
     init_db()
 
     if not args.dash_only:
-        run_classification(mode=args.mode, reclassify_all=args.reclassify_all)
+        run_classification(mode=args.mode, reclassify_all=args.reclassify_all, owner_email=args.owner_email)
     if not args.fetch_only:
         launch_dashboard()
-

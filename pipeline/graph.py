@@ -86,6 +86,8 @@ def _hr_store_node(state: EmailState) -> dict:
         "hr_matched_keywords": state.get("hr_matched_keywords", "[]"),
         "classification_mode": "hr",
         "hr_reasoning":        state.get("hr_reasoning", ""),
+        # Multi-account support
+        "owner_email":         state.get("owner_email", None),
     }
     upsert_email(record)
     return {}
@@ -115,7 +117,7 @@ hr_email_graph = build_hr_graph()
 
 # ── Dispatcher Functions ─────────────────────────────────────────────────────
 
-def classify_email(email: dict, mode: str = "standard") -> dict:
+def classify_email(email: dict, mode: str = "standard", owner_email: str | None = None) -> dict:
     """
     Run a single email through the appropriate pipeline.
     email: dict from fetcher.py
@@ -142,6 +144,8 @@ def classify_email(email: dict, mode: str = "standard") -> dict:
         "hr_reasoning":        None,
         "hr_prompt":           None,
         "hr_raw_response":     None,
+        # Multi-account support
+        "owner_email":         owner_email,
     }
 
     if mode == "hr":
@@ -149,7 +153,7 @@ def classify_email(email: dict, mode: str = "standard") -> dict:
     return email_graph.invoke(initial_state)
 
 
-def classify_batch(emails: list[dict], mode: str = "standard") -> list[dict]:
+def classify_batch(emails: list[dict], mode: str = "standard", owner_email: str | None = None) -> list[dict]:
     """
     Classify a batch of emails sequentially.
     Returns list of final states.
@@ -159,7 +163,7 @@ def classify_batch(emails: list[dict], mode: str = "standard") -> list[dict]:
     mode_label = "HR" if mode == "hr" else "Standard"
     for i, email in enumerate(emails, 1):
         print(f"\n  [{i}/{total}] [{mode_label}] Classifying: {email['subject'][:60]}")
-        result = classify_email(email, mode=mode)
+        result = classify_email(email, mode=mode, owner_email=owner_email)
 
         if mode == "hr":
             if result.get("status") == "classified":
@@ -176,4 +180,3 @@ def classify_batch(emails: list[dict], mode: str = "standard") -> list[dict]:
 
         results.append(result)
     return results
-

@@ -38,7 +38,7 @@ def _parse_sender(raw_sender: str) -> tuple[str, str]:
     return raw_sender.strip(), raw_sender.strip()
 
 
-def fetch_unread_emails(max_results: int = MAX_EMAILS_PER_RUN) -> list[dict]:
+def fetch_unread_emails(max_results: int = MAX_EMAILS_PER_RUN, owner_email: str | None = None) -> list[dict]:
     """
     Fetch unread emails from Gmail.
 
@@ -46,7 +46,7 @@ def fetch_unread_emails(max_results: int = MAX_EMAILS_PER_RUN) -> list[dict]:
         id, thread_id, subject, sender, sender_email,
         snippet, received_at, body_preview (first 400 chars)
     """
-    service = get_gmail_service()
+    service = get_gmail_service(owner_email)
     logger.info("Fetching up to {} unread emails...", max_results)
 
     # Step 1: list message IDs
