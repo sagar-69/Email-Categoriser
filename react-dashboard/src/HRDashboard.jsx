@@ -3,6 +3,10 @@ import {
   Calendar, DollarSign, Users, LogOut, FileText, Inbox, Mail,
   Search, Download,
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import HREmailCard from './HREmailCard';
 import HRCategoryChart, { HR_COLOURS, HR_LABELS } from './HRCategoryChart';
 
@@ -84,6 +88,36 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
       color: c.color,
     }));
   }, [stats]);
+
+  // Timeline data (emails by day, stacked by HR category)
+  const timelineData = useMemo(() => {
+    const byDate = {};
+    filtered.forEach(e => {
+      if (!e.received_at) return;
+      const d = e.received_at.slice(0, 10);
+      if (!byDate[d]) {
+        byDate[d] = { date: d };
+        HR_CATEGORIES.forEach(c => byDate[d][c.id] = 0);
+      }
+      if (e.hr_category && byDate[d][e.hr_category] !== undefined) {
+        byDate[d][e.hr_category]++;
+      }
+    });
+    return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filtered]);
+
+  // Custom tooltip for timeline chart
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload) return null;
+    return (
+      <div className={`rounded-lg border shadow-lg px-3 py-2 ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-200' : 'bg-white border-stone-200 text-stone-800'}`}>
+        {label && <p className="text-sm font-medium mb-1">{label}</p>}
+        {payload.map((p, i) => (
+          <p key={i} className="text-xs" style={{ color: p.color }}>{p.name}: {p.value}</p>
+        ))}
+      </div>
+    );
+  };
 
   // Toggle category filter
   const toggleCategory = (catId) => {
@@ -188,10 +222,37 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
           })}
         </div>
 
-        {/* Chart */}
-        <div className={`rounded-xl border p-4 mb-6 ${bgCard} ${borderCol}`}>
-          <h3 className={`text-sm font-semibold mb-3 ${textMain}`}>HR Category Distribution</h3>
-          <HRCategoryChart data={chartData} darkMode={darkMode} />
+        {/* Charts — side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          {/* Pie Chart */}
+          <div className={`rounded-xl border p-4 ${bgCard} ${borderCol}`}>
+            <h3 className={`text-sm font-semibold mb-3 ${textMain}`}>HR Category Distribution</h3>
+            <HRCategoryChart data={chartData} darkMode={darkMode} />
+          </div>
+
+          {/* Emails by Day Timeline */}
+          <div className={`rounded-xl border p-4 ${bgCard} ${borderCol}`}>
+            <h3 className={`text-sm font-semibold mb-3 ${textMain}`}>Emails by Day</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={timelineData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#44403c' : '#e7e5e4'} vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: darkMode ? '#a8a29e' : '#78716c', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: darkMode ? '#a8a29e' : '#78716c', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ color: darkMode ? '#a8a29e' : '#78716c', fontSize: 12 }} />
+                {HR_CATEGORIES.map((cat, i) => (
+                  <Bar
+                    key={cat.id}
+                    dataKey={cat.id}
+                    name={cat.label}
+                    stackId="a"
+                    fill={cat.color}
+                    radius={i === HR_CATEGORIES.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Email List Header */}
