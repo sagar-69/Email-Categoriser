@@ -8,8 +8,8 @@
 ██║████╗  ██║██╔══██╗██╔═══██╗╚██╗██╔╝    ██║████╗  ██║╚══██╔══╝██╔════╝██║
 ██║██╔██╗ ██║██████╔╝██║   ██║ ╚███╔╝     ██║██╔██╗ ██║   ██║   █████╗  ██║
 ██║██║╚██╗██║██╔══██╗██║   ██║ ██╔██╗     ██║██║╚██╗██║   ██║   ██╔══╝  ██║
-     ██║██║ ╚████║██████╔╝╚██████╔╝██╔╝ ██╗    ██║██║ ╚████║   ██║   ███████╗███████╗
-    ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝
+██║██║ ╚████║██████╔╝╚██████╔╝██╔╝ ██╗    ██║██║ ╚████║   ██║   ███████╗███████╗
+╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝   ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝
 ```
 
 ### 🧠✉️ **Privacy-First, Local AI Email Intelligence**
@@ -39,17 +39,15 @@
 
 ## 📸 Project Banner
 
-> **Replace the placeholders below with actual screenshots once the app is running.**
-
 <div align="center">
 
 | Dashboard (Dark Mode) | Dashboard (Light Mode) |
 |:---:|:---:|
-| ![Dark Dashboard](https://placehold.co/600x350/1a1a2e/61DAFB?text=React+Dashboard+%28Dark%29) | ![Light Dashboard](https://placehold.co/600x350/f8f9fa/009688?text=React+Dashboard+%28Light%29) |
+| ![Dark Dashboard](screenshots/dark%20dashboard.png) | ![Light Dashboard](screenshots/light%20dashboard.png) |
 
 | Email Classification View | HR Mode Analytics |
 |:---:|:---:|
-| ![Email List](https://placehold.co/600x350/0d1117/FF6B35?text=Email+Classification+Cards) | ![HR Mode](https://placehold.co/600x350/161b22/A78BFA?text=HR+Classification+Mode) |
+| ![Email List](screenshots/email%20list.png) | ![HR Mode](screenshots/hr%20dashboard.png) |
 
 </div>
 
@@ -851,32 +849,28 @@ pytest tests/test_fetcher.py -v
 <details>
 <summary>📊 <strong>React Dashboard — Dark Mode</strong></summary>
 
-> *Replace with actual screenshot*
-![Dashboard Dark](https://placehold.co/1200x700/0d1117/61DAFB?text=React+Dashboard+Dark+Mode%0A6+Metric+Cards+%7C+6+Charts+%7C+Email+List+%7C+Sidebar+Filters)
+![Dashboard Dark](screenshots/dark%20dashboard.png)
 
 </details>
 
 <details>
 <summary>☀️ <strong>React Dashboard — Light Mode</strong></summary>
 
-> *Replace with actual screenshot*
-![Dashboard Light](https://placehold.co/1200x700/f8f9fa/1a1a2e?text=React+Dashboard+Light+Mode%0ADark%2FLight+Toggle+%7C+CSV+Export+%7C+Search)
+![Dashboard Light](screenshots/light%20dashboard.png)
 
 </details>
 
 <details>
 <summary>🏢 <strong>HR Classification Mode</strong></summary>
 
-> *Replace with actual screenshot*
-![HR Mode](https://placehold.co/1200x700/161b22/a78bfa?text=HR+Classification+Mode%0ALeave+%7C+Payroll+%7C+Recruitment+%7C+Offboarding+%7C+Admin)
+![HR Mode](screenshots/hr%20dashboard.png)
 
 </details>
 
 <details>
-<summary>📈 <strong>Analytics Charts</strong></summary>
+<summary>📋 <strong>Email Classification List</strong></summary>
 
-> *Replace with actual screenshot*
-![Charts](https://placehold.co/1200x700/1a1a2e/FF6B35?text=Interactive+Charts%0ABar+Charts+%7C+Pie+Chart+%7C+Stacked+Timeline)
+![Email List](screenshots/email%20list.png)
 
 </details>
 
