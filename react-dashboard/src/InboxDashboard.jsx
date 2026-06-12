@@ -1,4 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -6,7 +9,8 @@ import {
 import {
   Mail, RefreshCw, Moon, Sun, Download, Filter,
   AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search,
-  ToggleLeft, ToggleRight, Briefcase, Brain, LogIn, ChevronDown, UserCircle, LogOut, Plus, Trash2
+  ToggleLeft, ToggleRight, Briefcase, Brain, LogIn, ChevronDown, UserCircle, LogOut, Plus, Trash2,
+  FileSpreadsheet, FileText
 } from 'lucide-react';
 import ClassificationModeModal from './ClassificationModeModal';
 import HRDashboard from './HRDashboard';
@@ -128,7 +132,9 @@ async function fetchEmails(mode = 'standard', ownerEmail = null) {
   const query = buildQuery({ mode: mode === 'hr' ? 'hr' : undefined, owner_email: ownerEmail });
   const res = await fetch(`${API_BASE}/emails${query}`);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json();
+  const json = await res.json();
+  // API returns { data: [...], total, limit, offset } — extract the array
+  return json.data || json;
 }
 
 async function apiMarkRead(emailId) {
@@ -461,6 +467,44 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     a.download = 'inbox_intel_export.csv';
     a.click();
     URL.revokeObjectURL(url);
+  }, [sorted]);
+
+  const handleExportExcel = useCallback(() => {
+    const headers = ['subject', 'sender', 'email_type_label', 'action_label', 'dept_label', 'priority_label', 'reason', 'received_at'];
+    const exportData = sorted.map(row => {
+      const obj = {};
+      headers.forEach(h => obj[h] = row[h]);
+      return obj;
+    });
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Emails");
+    XLSX.writeFile(workbook, "inbox_intel_export.xlsx");
+  }, [sorted]);
+
+  const handleExportPDF = useCallback(() => {
+    const doc = new jsPDF('landscape');
+    const headers = [['Subject', 'Sender', 'Type', 'Action', 'Department', 'Priority', 'Reason', 'Received']];
+    const exportData = sorted.map(row => [
+      row.subject,
+      row.sender,
+      row.email_type_label,
+      row.action_label,
+      row.dept_label,
+      row.priority_label,
+      row.reason,
+      row.received_at
+    ]);
+    
+    autoTable(doc, {
+      head: headers,
+      body: exportData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [14, 165, 233] }, // Tailwind sky-500
+    });
+    
+    doc.save("inbox_intel_export.pdf");
   }, [sorted]);
 
   // Error state
@@ -953,13 +997,29 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
                     <option>Most recent</option>
                     <option>Action required first</option>
                   </select>
-                  <button
-                    onClick={handleExport}
-                    className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
-                  >
-                    <Download className="w-4 h-4" />
-                    Export CSV
-                  </button>
+                  <div className={`flex items-center rounded-lg border overflow-hidden ${darkMode ? 'border-stone-700' : 'border-stone-200'}`}>
+                    <button
+                      onClick={handleExport}
+                      title="Export CSV"
+                      className={`flex items-center justify-center px-3 py-1.5 transition-colors border-r ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleExportExcel}
+                      title="Export Excel"
+                      className={`flex items-center justify-center px-3 py-1.5 transition-colors border-r ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-green-600 dark:text-green-500" />
+                    </button>
+                    <button
+                      onClick={handleExportPDF}
+                      title="Export PDF"
+                      className={`flex items-center justify-center px-3 py-1.5 transition-colors ${darkMode ? 'bg-stone-900 text-stone-300 hover:bg-stone-800' : 'bg-white text-stone-600 hover:bg-stone-50'}`}
+                    >
+                      <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -7,6 +7,9 @@ Supports multiple Google accounts by storing per-user tokens in
 Profile metadata (name, photo) stored separately in
 ~/.inbox-intel/tokens/{email}_meta.json
 
+Security: When TOKEN_ENCRYPTION_KEY is set in .env, tokens are
+encrypted at rest using Fernet symmetric encryption.
+
 Usage:
     from auth.gmail_auth import get_gmail_service
     service = get_gmail_service("user@gmail.com")
@@ -23,6 +26,45 @@ from loguru import logger
 import requests as http_requests
 
 from config.settings import GMAIL_SCOPES, CREDENTIALS_PATH
+
+# ── Token encryption (optional) ──────────────────────────────────────────────
+_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "").strip()
+_fernet = None
+
+if _ENCRYPTION_KEY:
+    try:
+        from cryptography.fernet import Fernet
+        _fernet = Fernet(_ENCRYPTION_KEY.encode() if isinstance(_ENCRYPTION_KEY, str) else _ENCRYPTION_KEY)
+        logger.info("Token encryption enabled (Fernet).")
+    except ImportError:
+        logger.warning(
+            "TOKEN_ENCRYPTION_KEY is set but 'cryptography' package is not installed. "
+            "Tokens will be stored in plain text. Install with: pip install cryptography"
+        )
+    except Exception as exc:
+        logger.warning("Invalid TOKEN_ENCRYPTION_KEY: {}. Tokens will be stored in plain text.", exc)
+
+
+def _save_token_file(path: Path, data: str) -> None:
+    """Save token data to file, encrypting if a key is configured."""
+    if _fernet:
+        encrypted = _fernet.encrypt(data.encode())
+        path.write_bytes(encrypted)
+    else:
+        path.write_text(data)
+
+
+def _load_token_file(path: Path) -> str:
+    """Load token data from file, decrypting if a key is configured."""
+    if _fernet:
+        try:
+            encrypted = path.read_bytes()
+            return _fernet.decrypt(encrypted).decode()
+        except Exception:
+            # Fallback: try reading as plain text (migration from unencrypted)
+            logger.debug("Could not decrypt {}, trying plain text.", path)
+            return path.read_text()
+    return path.read_text()
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 TOKENS_DIR = Path(os.getenv("TOKENS_DIR", "~/.inbox-intel/tokens")).expanduser()
@@ -106,7 +148,7 @@ def _migrate_legacy_token() -> None:
             profile = service.users().getProfile(userId="me").execute()
             email = profile.get("emailAddress", "unknown")
             dest = _token_path_for(email)
-            dest.write_text(creds.to_json())
+            _save_token_file(dest, creds.to_json())
             # Fetch and save profile metadata
             user_info = _fetch_user_info(creds)
             _save_meta(email, user_info)
@@ -175,7 +217,7 @@ def handle_auth_callback(code: str) -> dict:
 
     # Save the token
     token_path = _token_path_for(email)
-    token_path.write_text(creds.to_json())
+    _save_token_file(token_path, creds.to_json())
     logger.info("Saved token for {} at {}", email, token_path)
 
     # Fetch and save profile metadata (name, picture)
@@ -212,14 +254,15 @@ def get_credentials(owner_email: str | None = None) -> Credentials:
             "Please log in via the dashboard first."
         )
 
-    creds = Credentials.from_authorized_user_file(str(token_path), GMAIL_SCOPES)
+    token_data = _load_token_file(token_path)
+    creds = Credentials.from_authorized_user_info(json.loads(token_data), GMAIL_SCOPES)
     logger.debug("Loaded token from {}", token_path)
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             logger.info("Refreshing expired token for {}...", owner_email or "default")
             creds.refresh(Request())
-            token_path.write_text(creds.to_json())
+            _save_token_file(token_path, creds.to_json())
             logger.info("Token refreshed and saved to {}", token_path)
         else:
             raise RuntimeError(

@@ -18,17 +18,40 @@ from pipeline.state import EmailState
 from pipeline.prompts import CLASSIFICATION_SYSTEM_PROMPT, build_classification_prompt
 
 
+# ── Input sanitization ────────────────────────────────────────────────────────
+
+def _sanitize_text(text: str) -> str:
+    """
+    Strip potentially dangerous or misleading content from email text
+    before sending it to the LLM for classification.
+    """
+    if not text:
+        return ""
+    # Strip HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    # Remove zero-width characters
+    text = re.sub(r'[\u200b-\u200f\ufeff\u00ad]', '', text)
+    # Neutralise common prompt injection patterns
+    text = re.sub(
+        r'(?i)(ignore\s+previous|system\s+prompt|you\s+are\s+now|disregard\s+above|forget\s+instructions)',
+        '[FILTERED]',
+        text,
+    )
+    return text.strip()
+
+
 # ── Node 1: parse_node ────────────────────────────────────────────────────────
 
 def parse_node(state: EmailState) -> dict:
     """
     Formats the classification prompt from the raw email fields.
+    Sanitises inputs to strip HTML, zero-width chars, and prompt injection attempts.
     Sets: prompt
     """
     prompt = build_classification_prompt(
-        subject=state["subject"],
-        sender=f"{state['sender']} <{state['sender_email']}>",
-        snippet=state["snippet"],
+        subject=_sanitize_text(state["subject"]),
+        sender=_sanitize_text(f"{state['sender']} <{state['sender_email']}>"),
+        snippet=_sanitize_text(state["snippet"]),
     )
     logger.debug("parse_node: built prompt for email {}", state["id"])
     return {"prompt": prompt, "status": "pending"}
@@ -61,11 +84,11 @@ def classify_node(state: EmailState) -> dict:
         cleaned = re.sub(r"^```json\s*|```$", "", raw, flags=re.MULTILINE).strip()
         parsed = json.loads(cleaned)
 
-        # Validate enum values
-        email_type = parsed["email_type"].upper()
-        action     = parsed["action"].upper()
-        dept       = parsed["department"].upper()
-        priority   = parsed["priority"].upper()
+        # Validate enum values with safe fallbacks if LLM returns null
+        email_type = (parsed.get("email_type") or "GENERAL").upper()
+        action     = (parsed.get("action") or "FYI").upper()
+        dept       = (parsed.get("department") or "INTERNAL_PROJECT").upper()
+        priority   = (parsed.get("priority") or "STANDARD").upper()
 
         assert email_type in EmailTypeLabel.__members__, f"Invalid email_type: {email_type}"
         assert action     in ActionLabel.__members__,    f"Invalid action: {action}"

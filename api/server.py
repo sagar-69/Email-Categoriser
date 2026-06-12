@@ -3,9 +3,17 @@ FastAPI server that exposes the SQLite email database as a REST API.
 
 Runs on port 8000 alongside the existing Streamlit dashboard (8501)
 and the React dashboard dev server (5173).
+
+Security features:
+  - Rate limiting on /api/classify (10-second cooldown)
+  - CORS restricted to localhost dev servers
+
+Performance features:
+  - Pagination support on /api/emails via limit & offset params
 """
 
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -19,10 +27,10 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from data.store import (
     load_all, get_stats, init_db, load_hr_emails, get_hr_stats,
-    mark_as_read, get_unread_count,
+    mark_as_read, get_unread_count, count_all,
 )
 
-app = FastAPI(title="Inbox Intel API", version="1.0.0")
+app = FastAPI(title="Inbox Intel API", version="1.1.0")
 
 # Allow the React dev server (port 5173) to call us
 app.add_middleware(
@@ -89,15 +97,30 @@ def auth_remove_account(email: str):
 # ── Data Endpoints ───────────────────────────────────────────────────────────
 
 @app.get("/api/emails")
-def list_emails(mode: Optional[str] = Query(None), owner_email: Optional[str] = Query(None)):
-    """Return classified emails as a list of dicts. Use ?mode=hr for HR emails."""
+def list_emails(
+    mode: Optional[str] = Query(None),
+    owner_email: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Return classified emails as a list of dicts.
+    Use ?mode=hr for HR emails.
+    Use ?limit=50&offset=0 for pagination.
+    """
     if mode == "hr":
-        df = load_hr_emails(owner_email=owner_email)
+        df = load_hr_emails(owner_email=owner_email, limit=limit, offset=offset)
     else:
-        df = load_all(owner_email=owner_email)
+        df = load_all(owner_email=owner_email, limit=limit, offset=offset)
     # Replace NaN with None for JSON serialization
     df = df.where(df.notnull(), None)
-    return df.to_dict(orient="records")
+    total = count_all(owner_email=owner_email, mode=mode)
+    return {
+        "data": df.to_dict(orient="records"),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @app.get("/api/stats")
@@ -138,9 +161,27 @@ class ClassifyRequest(BaseModel):
     owner_email: str | None = None
 
 
+# ── Rate-limited classify endpoint ───────────────────────────────────────────
+_last_classify_time: float = 0
+_CLASSIFY_COOLDOWN: int = 10  # seconds
+
+
 @app.post("/api/classify")
 def classify(req: ClassifyRequest = ClassifyRequest()):
-    """Trigger the classification pipeline to fetch and classify new emails."""
+    """
+    Trigger the classification pipeline to fetch and classify new emails.
+    Rate-limited to one request per 10 seconds to protect the local Ollama instance.
+    """
+    global _last_classify_time
+    now = time.time()
+    if now - _last_classify_time < _CLASSIFY_COOLDOWN:
+        remaining = int(_CLASSIFY_COOLDOWN - (now - _last_classify_time))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Please wait {remaining} seconds before classifying again.",
+        )
+    _last_classify_time = now
+
     from scripts.run import run_classification
     try:
         run_classification(

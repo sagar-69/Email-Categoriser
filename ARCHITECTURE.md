@@ -11,16 +11,16 @@ Inbox Intel is a **3-tier local application**:
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              PRESENTATION LAYER                             │
-│  ┌─────────────────┐    ┌─────────────────-┐                                │
-│  │  React Dashboard│    │Streamlit App     │  (Legacy / Alternative)        │
-│  │  (Port 5173)    │    │  (Port 8501)     │                                │
-│  │  Vite + Tailwind│    │  Plotly Charts   │                                │
-│  │  Recharts +     │    │Inline Re-classify│                                │
-│  │  Lucide Icons   │    │                  │                                │
-│  └────────┬────────┘    └────────┬─────-───┘                                │
-│           │                      │                                          │
-│           │  HTTP GET/POST       │  Direct Python import                    │
-│           ▼                      ▼                                          │
+│  ┌─────────────────┐                                                        │
+│  │  React Dashboard│                                                        │
+│  │  (Port 5173)    │                                                        │
+│  │  Vite + Tailwind│                                                        │
+│  │  Recharts +     │                                                        │
+│  │  Lucide Icons   │                                                        │
+│  └────────┬────────┘                                                        │
+│           │                                                                 │
+│           │  HTTP GET/POST                                                  │
+│           ▼                                                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                              API / SERVICE LAYER                            │
 │  ┌─────────────────────────────────────────────────────────────────────────┐│
@@ -112,11 +112,6 @@ useCallback: loadEmails, handleRefresh, handleExport
 - All data comes from one API source
 - Filtering/sorting is client-side on a small dataset (< 1000 emails)
 
-#### Streamlit Dashboard (`dashboard/app.py`)
-- Runs as a separate Python process
-- Imports `data.store` directly (bypasses FastAPI)
-- Uses Plotly for charts (server-side rendering)
-- Good for quick debugging / when React build is broken
 
 ### 2.2 Backend Layer
 
@@ -228,7 +223,7 @@ def load_unread_ids() -> set       # Return set of existing IDs (dedup)
 def get_stats() -> dict            # Return value_counts per label
 ```
 
-**Reused by**: `pipeline/nodes.py`, `api/server.py`, `dashboard/app.py`, `scripts/run.py`
+**Reused by**: `pipeline/nodes.py`, `api/server.py`, `scripts/run.py`
 
 ### 4.2 Service: `auth.gmail_auth` (Authentication Service)
 
@@ -238,7 +233,7 @@ def get_credentials() -> Credentials    # OAuth2 flow management
 def get_gmail_service() -> Resource     # Authenticated Gmail API client
 ```
 
-**Reused by**: `data/fetcher.py`, `dashboard/app.py`
+**Reused by**: `data/fetcher.py`
 
 ### 4.3 Service: `pipeline.graph` (Classification Service)
 
@@ -509,29 +504,29 @@ React renders: metrics → charts → email list
                     │  (localhost:5173)│
                     └────────┬────────┘
                              │
-              ┌──────────────┼──────────────┐
-              │              │              │
-              ▼              ▼              ▼
-       ┌────────────┐ ┌────────────┐ ┌────────────┐
-       │  React UI  │ │ Streamlit  │ │   CLI      │
-       │  (Vite)    │ │  (8501)    │ │  (run.py)  │
-       └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
+               ┌──────────────┐
+               │              │
+               ▼              ▼
+        ┌────────────┐ ┌────────────┐
+        │  React UI  │ │   CLI      │
+        │  (Vite)    │ │  (run.py)  │
+        └─────┬──────┘ └─────┬──────┘
+              │              │
+              │  HTTP        │  Direct
+              │  GET/POST    │  Python
+              ▼              ▼
+        ┌─────────────────────────────────────────┐
+        │         FastAPI Server (8000)           │
+        │  /api/emails  /api/stats  /api/classify │
+        └─────────────────────────────────────────┘
              │              │              │
-             │  HTTP        │  Direct      │  Direct
-             │  GET/POST    │  Python      │  Python
+             │              │              │
              ▼              ▼              ▼
-       ┌─────────────────────────────────────────┐
-       │         FastAPI Server (8000)           │
-       │  /api/emails  /api/stats  /api/classify │
-       └─────────────────────────────────────────┘
-             │              │              │
-             │              │              │
-             ▼              ▼              ▼
-       ┌────────────┐ ┌────────────┐ ┌────────────┐
-       │data.store  │ │data.store  │ │pipeline.   │
-       │.load_all() │ │.get_stats()│ │graph       │
-       └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
-             │              │              │
+        ┌────────────┐ ┌────────────┐
+        │data.store  │ │pipeline.   │
+        │.load_all() │ │graph       │
+        └─────┬──────┘ └─────┬──────┘
+              │              │
              ▼              ▼              ▼
        ┌─────────────────────────────────────────┐
        │         SQLite Database                 │

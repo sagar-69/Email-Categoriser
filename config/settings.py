@@ -21,6 +21,11 @@ OLLAMA_TIMEOUT  = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 GMAIL_SCOPES      = ["https://www.googleapis.com/auth/gmail.readonly"]
 MAX_EMAILS_PER_RUN = int(os.getenv("MAX_EMAILS_PER_RUN", "200"))
 
+# ── Security ─────────────────────────────────────────────────────────────────
+# Optional: set to a Fernet key to encrypt OAuth tokens at rest
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "")
+
 # ── Classification Enums ─────────────────────────────────────────────────────
 class EmailTypeLabel(str, Enum):
     SALES      = "SALES"

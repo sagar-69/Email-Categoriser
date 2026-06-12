@@ -3,9 +3,15 @@ SQLite persistence layer for classified emails.
 
 All reads return pandas DataFrames.
 All writes accept dicts or lists of dicts.
+
+Performance features:
+  - WAL journal mode for concurrent read/write support
+  - In-memory TTL cache for stats queries (30-second TTL)
+  - Pagination support via limit/offset parameters
 """
 
 import sqlite3
+import time
 import pandas as pd
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,10 +21,22 @@ from config.settings import DB_PATH
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 
+# ── Stats cache ──────────────────────────────────────────────────────────────
+_stats_cache: dict[str, dict] = {}
+_STATS_TTL = 30  # seconds
+
+
+def _invalidate_cache():
+    """Clear the stats cache (called on writes)."""
+    _stats_cache.clear()
+
 
 def _conn() -> sqlite3.Connection:
+    """Create a database connection with WAL mode for concurrent access."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    return sqlite3.connect(str(DB_PATH))
+    con = sqlite3.connect(str(DB_PATH))
+    con.execute("PRAGMA journal_mode=WAL")
+    return con
 
 
 def init_db() -> None:
@@ -94,6 +112,7 @@ def upsert_email(record: dict) -> None:
     sql = f"INSERT OR REPLACE INTO emails ({cols}) VALUES ({placeholders})"
     with _conn() as con:
         con.execute(sql, list(record.values()))
+    _invalidate_cache()
 
 
 def bulk_upsert(records: list[dict]) -> None:
@@ -137,15 +156,41 @@ def get_unread_count(mode: str | None = None, owner_email: str | None = None) ->
         return cur.fetchone()[0]
 
 
-def load_all(owner_email: str | None = None) -> pd.DataFrame:
-    """Return all classified emails as a DataFrame, optionally filtered by owner."""
+# ── Pagination helpers ───────────────────────────────────────────────────────
+
+def count_all(owner_email: str | None = None, mode: str | None = None) -> int:
+    """Return total count of emails, optionally filtered by owner and mode."""
     with _conn() as con:
-        if owner_email:
-            return pd.read_sql_query(
-                "SELECT * FROM emails WHERE owner_email = ? ORDER BY received_at DESC",
-                con, params=[owner_email],
+        if mode == "hr":
+            sql = (
+                "SELECT COUNT(*) FROM emails WHERE classification_mode = 'hr' "
+                "AND (hr_category IS NOT NULL AND hr_category != 'NON_HR')"
             )
-        return pd.read_sql_query("SELECT * FROM emails ORDER BY received_at DESC", con)
+        else:
+            sql = "SELECT COUNT(*) FROM emails"
+        params = []
+        if owner_email:
+            if "WHERE" in sql:
+                sql += " AND owner_email = ?"
+            else:
+                sql += " WHERE owner_email = ?"
+            params.append(owner_email)
+        cur = con.execute(sql, params)
+        return cur.fetchone()[0]
+
+
+def load_all(owner_email: str | None = None, limit: int | None = None, offset: int = 0) -> pd.DataFrame:
+    """Return all classified emails as a DataFrame, optionally filtered by owner with pagination."""
+    with _conn() as con:
+        sql = "SELECT * FROM emails"
+        params = []
+        if owner_email:
+            sql += " WHERE owner_email = ?"
+            params.append(owner_email)
+        sql += " ORDER BY received_at DESC"
+        if limit is not None:
+            sql += f" LIMIT {int(limit)} OFFSET {int(offset)}"
+        return pd.read_sql_query(sql, con, params=params)
 
 
 def load_unread_ids(owner_email: str | None = None) -> set[str]:
@@ -174,22 +219,30 @@ def load_standard_classified_ids(owner_email: str | None = None) -> set[str]:
 
 
 def get_stats(owner_email: str | None = None) -> dict:
-    """Return aggregated counts per label group."""
+    """Return aggregated counts per label group. Results are cached for 30 seconds."""
+    cache_key = f"stats:{owner_email}"
+    if cache_key in _stats_cache and time.time() - _stats_cache[cache_key]["ts"] < _STATS_TTL:
+        return _stats_cache[cache_key]["data"]
+
     df = load_all(owner_email=owner_email)
     if df.empty:
-        return {"email_type": {}, "action": {}, "dept": {}, "priority": {}}
-    return {
-        "email_type": df["email_type_label"].value_counts().to_dict(),
-        "action":     df["action_label"].value_counts().to_dict(),
-        "dept":       df["dept_label"].value_counts().to_dict(),
-        "priority":   df["priority_label"].value_counts().to_dict(),
-        "total":      len(df),
-    }
+        result = {"email_type": {}, "action": {}, "dept": {}, "priority": {}}
+    else:
+        result = {
+            "email_type": df["email_type_label"].value_counts().to_dict(),
+            "action":     df["action_label"].value_counts().to_dict(),
+            "dept":       df["dept_label"].value_counts().to_dict(),
+            "priority":   df["priority_label"].value_counts().to_dict(),
+            "total":      len(df),
+        }
+
+    _stats_cache[cache_key] = {"data": result, "ts": time.time()}
+    return result
 
 
 # ── HR-specific query functions ──────────────────────────────────────────────
 
-def load_hr_emails(owner_email: str | None = None) -> pd.DataFrame:
+def load_hr_emails(owner_email: str | None = None, limit: int | None = None, offset: int = 0) -> pd.DataFrame:
     """Return emails classified in HR mode, excluding NON_HR."""
     with _conn() as con:
         sql = (
@@ -201,27 +254,37 @@ def load_hr_emails(owner_email: str | None = None) -> pd.DataFrame:
             sql += "AND owner_email = ? "
             params.append(owner_email)
         sql += "ORDER BY received_at DESC"
+        if limit is not None:
+            sql += f" LIMIT {int(limit)} OFFSET {int(offset)}"
         return pd.read_sql_query(sql, con, params=params)
 
 
 def get_hr_stats(owner_email: str | None = None) -> dict:
-    """Return aggregated counts for HR categories."""
+    """Return aggregated counts for HR categories. Results are cached for 30 seconds."""
+    cache_key = f"hr_stats:{owner_email}"
+    if cache_key in _stats_cache and time.time() - _stats_cache[cache_key]["ts"] < _STATS_TTL:
+        return _stats_cache[cache_key]["data"]
+
     df = load_hr_emails(owner_email=owner_email)
     if df.empty:
-        return {
+        result = {
             "total_hr": 0,
             "LEAVE_OD": 0, "PAYROLL_COMP": 0, "RECRUITMENT": 0,
             "OFFBOARDING": 0, "HR_ADMIN": 0,
         }
-    counts = df["hr_category"].value_counts().to_dict()
-    return {
-        "total_hr":     len(df),
-        "LEAVE_OD":     counts.get("LEAVE_OD", 0),
-        "PAYROLL_COMP": counts.get("PAYROLL_COMP", 0),
-        "RECRUITMENT":  counts.get("RECRUITMENT", 0),
-        "OFFBOARDING":  counts.get("OFFBOARDING", 0),
-        "HR_ADMIN":     counts.get("HR_ADMIN", 0),
-    }
+    else:
+        counts = df["hr_category"].value_counts().to_dict()
+        result = {
+            "total_hr":     len(df),
+            "LEAVE_OD":     counts.get("LEAVE_OD", 0),
+            "PAYROLL_COMP": counts.get("PAYROLL_COMP", 0),
+            "RECRUITMENT":  counts.get("RECRUITMENT", 0),
+            "OFFBOARDING":  counts.get("OFFBOARDING", 0),
+            "HR_ADMIN":     counts.get("HR_ADMIN", 0),
+        }
+
+    _stats_cache[cache_key] = {"data": result, "ts": time.time()}
+    return result
 
 
 def load_hr_unclassified_ids(owner_email: str | None = None) -> set[str]:

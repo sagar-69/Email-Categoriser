@@ -153,6 +153,19 @@
 - **Rationale**: Users need to track which classified emails have been triaged.
 - **Impact**: Improves workflow by removing triaged emails from the active dashboard view while keeping them in the database for stats.
 
+#### [❌] Removed — Streamlit Dashboard
+- **Date**: 2026-06-12
+- **Change**: Deleted the `dashboard/` directory containing the legacy Streamlit code.
+- **Rationale**: The React dashboard now has complete feature parity and is much faster.
+- **Impact**: Removes dual-maintenance burden; completely transition to React.
+
+#### [✅] Added — Excel & PDF Export (React Dashboard)
+- **Date**: 2026-06-12
+- **Change**: Added `xlsx`, `jspdf`, and `jspdf-autotable` dependencies to the React frontend.
+- **Features**: Added "Export Excel" (.xlsx) and "Export PDF" functionality to the dashboard alongside CSV.
+- **Rationale**: Users requested more robust export formats beyond CSV.
+- **Impact**: Data can now be exported in heavily formatted tables ready for business reports.
+
 ---
 
 ## Pending / Planned Changes
@@ -248,6 +261,8 @@
 | 2026-06-03 | 🔧 | Cross-platform startup scripts and graceful shutdown |
 | 2026-06-03 | ✅ | React dashboard search, snippets, and error handling |
 | 2026-06-04 | ✅ | HR classification pipeline and React dashboard mode modal |
+| 2026-06-12 | ❌ | Removed Streamlit legacy dashboard |
+| 2026-06-12 | ✅ | Excel and PDF export functionality for React dashboard |
 | TBD | 📦 | Add pytest testing framework |
 | TBD | ✅ | API pagination |
 | TBD | ✅ | WebSocket real-time updates |

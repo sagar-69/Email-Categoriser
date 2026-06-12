@@ -1,6 +1,9 @@
 """
 Gmail fetcher: pulls unread messages in batches and normalises them
 into flat dicts ready for the classification pipeline.
+
+Uses the Google API Client's BatchHttpRequest to fetch all message
+details in a single HTTP round-trip instead of one-by-one.
 """
 
 import base64
@@ -38,9 +41,36 @@ def _parse_sender(raw_sender: str) -> tuple[str, str]:
     return raw_sender.strip(), raw_sender.strip()
 
 
+def _parse_message(msg: dict) -> dict | None:
+    """Parse a single Gmail API message response into a flat dict."""
+    try:
+        headers = msg.get("payload", {}).get("headers", [])
+        subject  = _get_header(headers, "Subject") or "(no subject)"
+        raw_from = _get_header(headers, "From")    or ""
+        date_str = _get_header(headers, "Date")    or ""
+
+        sender_name, sender_email = _parse_sender(raw_from)
+        body_text = _decode_body(msg.get("payload", {}))
+        snippet   = msg.get("snippet", "")[:300]
+
+        return {
+            "id":           msg["id"],
+            "thread_id":    msg.get("threadId", ""),
+            "subject":      subject,
+            "sender":       sender_name,
+            "sender_email": sender_email,
+            "snippet":      snippet,
+            "body_preview": body_text[:400],
+            "received_at":  date_str,
+        }
+    except Exception as exc:
+        logger.warning("Failed to parse message {}: {}", msg.get("id", "?"), exc)
+        return None
+
+
 def fetch_unread_emails(max_results: int = MAX_EMAILS_PER_RUN, owner_email: str | None = None) -> list[dict]:
     """
-    Fetch unread emails from Gmail.
+    Fetch unread emails from Gmail using batched API requests.
 
     Returns a list of flat dicts:
         id, thread_id, subject, sender, sender_email,
@@ -61,39 +91,42 @@ def fetch_unread_emails(max_results: int = MAX_EMAILS_PER_RUN, owner_email: str 
         logger.info("No unread messages found.")
         return []
 
-    logger.info("Found {} unread messages. Fetching details...", len(messages))
+    logger.info("Found {} unread messages. Fetching details via batch API...", len(messages))
 
+    # Step 2: batch-fetch all message details
     emails = []
-    for msg_meta in messages:
-        try:
-            msg = service.users().messages().get(
-                userId="me",
-                id=msg_meta["id"],
-                format="full"
-            ).execute()
+    errors = []
 
-            headers = msg.get("payload", {}).get("headers", [])
-            subject  = _get_header(headers, "Subject") or "(no subject)"
-            raw_from = _get_header(headers, "From")    or ""
-            date_str = _get_header(headers, "Date")    or ""
+    def _batch_callback(request_id, response, exception):
+        """Callback for each message in the batch."""
+        if exception is not None:
+            logger.warning("Batch fetch failed for request {}: {}", request_id, exception)
+            errors.append(request_id)
+            return
+        parsed = _parse_message(response)
+        if parsed:
+            emails.append(parsed)
 
-            sender_name, sender_email = _parse_sender(raw_from)
-            body_text = _decode_body(msg.get("payload", {}))
-            snippet   = msg.get("snippet", "")[:300]
+    # Google API allows max 100 requests per batch — split if needed
+    BATCH_SIZE = 100
+    for i in range(0, len(messages), BATCH_SIZE):
+        chunk = messages[i:i + BATCH_SIZE]
+        batch = service.new_batch_http_request(callback=_batch_callback)
 
-            emails.append({
-                "id":           msg["id"],
-                "thread_id":    msg.get("threadId", ""),
-                "subject":      subject,
-                "sender":       sender_name,
-                "sender_email": sender_email,
-                "snippet":      snippet,
-                "body_preview": body_text[:400],
-                "received_at":  date_str,
-            })
-        except Exception as exc:
-            logger.warning("Failed to fetch message {}: {}", msg_meta["id"], exc)
-            continue
+        for msg_meta in chunk:
+            batch.add(
+                service.users().messages().get(
+                    userId="me",
+                    id=msg_meta["id"],
+                    format="full"
+                ),
+                request_id=msg_meta["id"],
+            )
+
+        batch.execute()
+
+    if errors:
+        logger.warning("{} messages failed during batch fetch.", len(errors))
 
     logger.info("Successfully fetched {} email details.", len(emails))
     return emails

@@ -27,7 +27,6 @@
 | **Tailwind CSS** | Utility-first styling |
 | **Recharts** | Data visualization (Bar, Pie, Timeline charts) |
 | **Lucide React** | Icon library |
-| **Streamlit** | Legacy Python dashboard (port 8501) |
 
 ### External APIs
 | Service | Purpose |
@@ -50,12 +49,6 @@
                        │  FastAPI     │◀───────────────────│  React UI   │
                        │  (REST API)  │                    │  (Port 5173)│
                        └──────────────┘                    └─────────────┘
-                              │
-                              ▼
-                       ┌──────────────┐
-                       │  Streamlit   │
-                       │  (Port 8501) │
-                       └──────────────┘
 ```
 
 ### Detailed Flow
@@ -231,11 +224,6 @@ ollama==0.2.1
 pandas==2.2.2
 SQLAlchemy==2.0.30
 
-# Dashboard
-streamlit==1.35.0
-plotly==5.22.0
-streamlit-extras==0.4.3
-
 # Utilities
 python-dotenv==1.0.1
 tenacity==8.3.0
@@ -303,10 +291,6 @@ rich==13.7.1
   - [x] Sidebar multi-select filters (all 4 dimensions)
   - [x] CSV export
   - [x] Refresh button (triggers re-classification)
-- [x] **Streamlit Dashboard** (legacy):
-  - [x] Same filters and charts using Plotly
-  - [x] Inline re-classification button
-  - [x] CSV download
 
 ### DevOps / Tooling
 - [x] `scripts/setup.sh` — automated environment setup
@@ -325,18 +309,17 @@ rich==13.7.1
 - [x] `start.sh` is macOS-only (AppleScript); no Linux/Windows equivalent
 - [x] No graceful shutdown for Ollama/FastAPI when `start.sh` exits
 - [x] Error handling in React dashboard is minimal (no retry on API failure)
-- [x] `dashboard/app.py` sometimes fails to load on first run (import path issues)
 
 ### Performance
-- [ ] No batching for Gmail API calls (fetches messages one-by-one)
-- [ ] No pagination for `/api/emails` (loads entire DB into memory)
-- [ ] SQLite is single-writer; concurrent classification + API reads may block
-- [ ] No caching layer for stats (recomputed on every `/api/stats` call)
+- [x] No batching for Gmail API calls → **Fixed:** Uses `BatchHttpRequest` (up to 100/batch)
+- [x] No pagination for `/api/emails` → **Fixed:** Added `limit` & `offset` params + `count_all()`
+- [x] SQLite is single-writer → **Fixed:** `PRAGMA journal_mode=WAL` enabled
+- [x] No caching layer for stats → **Fixed:** 30-second TTL in-memory cache with auto-invalidation
 
 ### Security
-- [ ] No input sanitization on email snippets before sending to LLM
-- [ ] No rate limiting on `/api/classify` endpoint
-- [ ] OAuth token is stored as plain JSON (not encrypted at rest)
+- [x] No input sanitization on email snippets → **Fixed:** `_sanitize_text()` strips HTML, zero-width chars, prompt injections
+- [x] No rate limiting on `/api/classify` → **Fixed:** 10-second cooldown, returns HTTP 429
+- [x] OAuth token stored as plain JSON → **Fixed:** Optional Fernet encryption via `TOKEN_ENCRYPTION_KEY`
 - [ ] No HTTPS in development (FastAPI runs on plain HTTP)
 
 ---
@@ -344,7 +327,7 @@ rich==13.7.1
 ## 9. Pending Tasks / Roadmap
 
 ### Short Term
-- [ ] Add `tests/` unit tests (only folder exists, no test files)
+- [x] Add `tests/` unit tests → **Done:** `test_store.py`, `test_hr_keywords.py`, `test_graph.py`, `test_pipeline.py`, `test_fetcher.py`, `conftest.py`
 - [x] Add `.env.example` to repo (referenced in README but missing)
 - [x] Remove `venv/` from Git and add to `.gitignore`
 - [x] Add Linux/Windows startup scripts (cross-platform `start.sh`)
@@ -352,16 +335,16 @@ rich==13.7.1
 - [x] Add search functionality (by subject, sender, or reason)
 
 ### Medium Term
-- [ ] Add pagination to `/api/emails` (cursor-based or offset)
+- [x] Add pagination to `/api/emails` → **Done:** offset-based with `limit`/`offset` params
 - [ ] Add WebSocket support for real-time updates when new emails arrive
 - [ ] Add email threading view (group by `thread_id`)
 - [ ] Add user preferences (default filters, sort order)
-- [ ] Add export to PDF/Excel (not just CSV)
-- [ ] Add notification badges for urgent emails
+- [x] Add export to PDF/Excel (not just CSV) → **Done:** Implemented using xlsx and jspdf
+- [x] Add notification badges for urgent emails
 
 ### Long Term
 - [ ] Support multiple email providers (Outlook, IMAP)
-- [ ] Add user accounts & multi-tenancy
+- [x] Add user accounts & multi-tenancy → **Done:** Multi-account Google OAuth login
 - [ ] Deploy to cloud (Docker containerization)
 - [ ] Add model switching (support multiple Ollama models)
 - [ ] Add custom classification rules (user-defined labels)
@@ -370,7 +353,7 @@ rich==13.7.1
 - [ ] Mobile-responsive React dashboard optimization
 
 ### Architecture Improvements
-- [ ] Add Redis/caching layer for stats
+- [x] Add Redis/caching layer for stats → **Done:** In-memory TTL cache (no Redis needed)
 - [ ] Add background job queue (Celery/RQ) for classification
 - [ ] Add database migrations (Alembic)
 - [ ] Add API authentication (JWT tokens)
