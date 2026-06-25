@@ -115,6 +115,19 @@ def upsert_email(record: dict) -> None:
     _invalidate_cache()
 
 
+def load_email_record(email_id: str, owner_email: str | None = None) -> dict | None:
+    """Return one email row as a dict, or None when it does not exist."""
+    with _conn() as con:
+        con.row_factory = sqlite3.Row
+        sql = "SELECT * FROM emails WHERE id = ?"
+        params = [email_id]
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
+        row = con.execute(sql, params).fetchone()
+        return dict(row) if row else None
+
+
 def bulk_upsert(records: list[dict]) -> None:
     """Batch upsert a list of email records."""
     for r in records:

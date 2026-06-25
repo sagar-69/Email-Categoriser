@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   Calendar, DollarSign, Users, LogOut, FileText, Inbox, Mail,
-  Search, Download,
+  Search, Download, FileSpreadsheet,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -18,6 +21,42 @@ const HR_CATEGORIES = [
   { id: 'HR_ADMIN',     label: 'HR Admin',       color: '#8b5cf6', icon: FileText },
 ];
 
+const normalizeLabel = (value) => String(value || '').trim().toUpperCase();
+
+const parseEmailTime = (value) => {
+  if (!value) return 0;
+
+  const raw = String(value).trim();
+  const candidates = [
+    raw,
+    raw.replace(/\s*\([^)]*\)\s*$/, ''),
+    raw.replace(/,\s*/, ', '),
+  ];
+
+  for (const candidate of candidates) {
+    const time = Date.parse(candidate);
+    if (!Number.isNaN(time)) return time;
+  }
+
+  const match = raw.match(/(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}\s+\d{1,2}:\d{2}(?::\d{2})?\s*(?:[+-]\d{4})?)/);
+  if (match) {
+    const time = Date.parse(match[1]);
+    if (!Number.isNaN(time)) return time;
+  }
+
+  return 0;
+};
+
+const compareNewestFirst = (a, b) => {
+  const receivedDiff = parseEmailTime(b.received_at) - parseEmailTime(a.received_at);
+  if (receivedDiff !== 0) return receivedDiff;
+
+  const classifiedDiff = parseEmailTime(b.classified_at) - parseEmailTime(a.classified_at);
+  if (classifiedDiff !== 0) return classifiedDiff;
+
+  return String(b.id || '').localeCompare(String(a.id || ''));
+};
+
 /**
  * HRDashboard — Full HR mode dashboard with metrics, charts, filters, and email list.
  *
@@ -27,11 +66,21 @@ const HR_CATEGORIES = [
  *   onRefresh: function
  *   loading:   boolean
  */
-export default function HRDashboard({ emails, darkMode, onMarkRead }) {
+export default function HRDashboard({
+  emails,
+  darkMode,
+  onMarkRead,
+  onSuggestReplies,
+  replyLoading = {},
+  replySuggestions = {},
+  copiedReply,
+  onCopyReply,
+}) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState(
     HR_CATEGORIES.map(c => c.id)
   );
+  const [sortBy, setSortBy] = useState('Urgent First');
 
   // Theme helpers
   const bgCard = darkMode ? 'bg-stone-900' : 'bg-white';
@@ -44,7 +93,7 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
     return emails.filter(email => {
       // Skip read emails
       if (email.is_read) return false;
-      if (!selectedCategories.includes(email.hr_category)) return false;
+      if (!selectedCategories.includes(normalizeLabel(email.hr_category))) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -58,7 +107,7 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
   // All HR emails matching filters (including read) — for "Total HR" metric
   const allHrFiltered = useMemo(() => {
     return emails.filter(email => {
-      if (!selectedCategories.includes(email.hr_category)) return false;
+      if (!selectedCategories.includes(normalizeLabel(email.hr_category))) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
       return (
@@ -74,10 +123,33 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
     const counts = {};
     HR_CATEGORIES.forEach(c => counts[c.id] = 0);
     filtered.forEach(e => {
-      if (counts[e.hr_category] !== undefined) counts[e.hr_category]++;
+      const category = normalizeLabel(e.hr_category);
+      if (counts[category] !== undefined) counts[category]++;
     });
     return { total: allHrFiltered.length, unread: filtered.length, ...counts };
   }, [filtered, allHrFiltered]);
+
+  const sorted = useMemo(() => {
+    const rows = [...filtered];
+    if (sortBy === 'Urgent First') {
+      const priorityOrder = { URGENT: 0, STANDARD: 1, LOW_PRIORITY: 2 };
+      rows.sort((a, b) => {
+        const priorityDiff = (priorityOrder[normalizeLabel(a.priority_label)] ?? 99) - (priorityOrder[normalizeLabel(b.priority_label)] ?? 99);
+        if (priorityDiff !== 0) return priorityDiff;
+        return compareNewestFirst(a, b);
+      });
+    } else if (sortBy === 'Most Recent First') {
+      rows.sort(compareNewestFirst);
+    } else if (sortBy === 'Action Required First') {
+      const actionOrder = { ACTION_REQUIRED: 0, AWAITING_REPLY: 1, FYI: 2, REFERENCE: 3 };
+      rows.sort((a, b) => {
+        const actionDiff = (actionOrder[normalizeLabel(a.action_label)] ?? 99) - (actionOrder[normalizeLabel(b.action_label)] ?? 99);
+        if (actionDiff !== 0) return actionDiff;
+        return compareNewestFirst(a, b);
+      });
+    }
+    return rows;
+  }, [filtered, sortBy]);
 
   // Pie chart data
   const chartData = useMemo(() => {
@@ -99,8 +171,9 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
         byDate[d] = { date: d };
         HR_CATEGORIES.forEach(c => byDate[d][c.id] = 0);
       }
-      if (e.hr_category && byDate[d][e.hr_category] !== undefined) {
-        byDate[d][e.hr_category]++;
+      const category = normalizeLabel(e.hr_category);
+      if (category && byDate[d][category] !== undefined) {
+        byDate[d][category]++;
       }
     });
     return Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
@@ -121,11 +194,11 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
 
   // Toggle category filter
   const toggleCategory = (catId) => {
-    if (selectedCategories.includes(catId)) {
-      setSelectedCategories(selectedCategories.filter(c => c !== catId));
-    } else {
-      setSelectedCategories([...selectedCategories, catId]);
-    }
+    setSelectedCategories(prev => (
+      prev.includes(catId)
+        ? prev.filter(c => c !== catId)
+        : [...prev, catId]
+    ));
   };
 
   // Export CSV
@@ -133,7 +206,7 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
     const headers = ['subject', 'sender', 'sender_email', 'hr_category', 'hr_confidence', 'hr_reasoning', 'received_at'];
     const csv = [
       headers.join(','),
-      ...filtered.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(','))
+      ...sorted.map(row => headers.map(h => `"${(row[h] || '').toString().replace(/"/g, '""')}"`).join(','))
     ].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -142,6 +215,42 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
     a.download = 'inbox_intel_hr_export.csv';
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportExcel = () => {
+    const headers = ['subject', 'sender', 'sender_email', 'hr_category', 'hr_confidence', 'hr_reasoning', 'received_at'];
+    const exportData = sorted.map(row => {
+      const obj = {};
+      headers.forEach(h => obj[h] = row[h]);
+      return obj;
+    });
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'HR Emails');
+    XLSX.writeFile(workbook, 'inbox_intel_hr_export.xlsx');
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF('landscape');
+    const headers = [['Subject', 'Sender', 'Category', 'Confidence', 'Reasoning', 'Received']];
+    const exportData = sorted.map(row => [
+      row.subject,
+      row.sender,
+      row.hr_category,
+      row.hr_confidence,
+      row.hr_reasoning,
+      row.received_at,
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: exportData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [245, 158, 11] },
+    });
+
+    doc.save('inbox_intel_hr_export.pdf');
   };
 
   return (
@@ -154,6 +263,21 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
         </div>
 
         <div className={`rounded-lg border p-2 ${darkMode ? 'bg-stone-900 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
+          <label className={`flex items-center gap-2 py-1.5 mb-1 border-b cursor-pointer hover:opacity-80 ${darkMode ? 'border-stone-800' : 'border-stone-200'}`}>
+            <input
+              type="checkbox"
+              checked={selectedCategories.length === HR_CATEGORIES.length}
+              onChange={() => setSelectedCategories(
+                selectedCategories.length === HR_CATEGORIES.length
+                  ? []
+                  : HR_CATEGORIES.map(c => c.id)
+              )}
+              className="rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+            />
+            <span className={`text-sm font-medium ${darkMode ? 'text-stone-200' : 'text-stone-700'}`}>
+              All
+            </span>
+          </label>
           {HR_CATEGORIES.map(cat => {
             const Icon = cat.icon;
             return (
@@ -273,26 +397,73 @@ export default function HRDashboard({ emails, darkMode, onMarkRead }) {
                 }`}
               />
             </div>
-            <button
-              onClick={handleExport}
-              className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border transition-colors ${
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={`text-sm rounded-lg border px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                 darkMode
-                  ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800'
-                  : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                  ? 'bg-stone-900 border-stone-700 text-stone-200'
+                  : 'bg-white border-stone-200 text-stone-700'
               }`}
             >
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
+              <option>Urgent First</option>
+              <option>Most Recent First</option>
+              <option>Action Required First</option>
+            </select>
+            <div className={`flex items-center rounded-lg border overflow-hidden ${darkMode ? 'border-stone-700' : 'border-stone-200'}`}>
+              <button
+                onClick={handleExport}
+                title="Export CSV"
+                className={`flex items-center justify-center px-3 py-1.5 transition-colors border-r ${
+                  darkMode
+                    ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800'
+                    : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleExportExcel}
+                title="Export Excel"
+                className={`flex items-center justify-center px-3 py-1.5 transition-colors border-r ${
+                  darkMode
+                    ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800'
+                    : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 text-green-600 dark:text-green-500" />
+              </button>
+              <button
+                onClick={handleExportPDF}
+                title="Export PDF"
+                className={`flex items-center justify-center px-3 py-1.5 transition-colors ${
+                  darkMode
+                    ? 'bg-stone-900 text-stone-300 hover:bg-stone-800'
+                    : 'bg-white text-stone-600 hover:bg-stone-50'
+                }`}
+              >
+                <FileText className="w-4 h-4 text-red-600 dark:text-red-500" />
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Email Cards */}
         <div className="space-y-3">
-          {filtered.slice(0, 100).map((email) => (
-            <HREmailCard key={email.id} email={email} darkMode={darkMode} onMarkRead={onMarkRead} />
+          {sorted.slice(0, 100).map((email) => (
+            <HREmailCard
+              key={email.id}
+              email={email}
+              darkMode={darkMode}
+              onMarkRead={onMarkRead}
+              onSuggestReplies={onSuggestReplies}
+              replyLoading={replyLoading[email.id]}
+              replySuggestions={replySuggestions[email.id]}
+              copiedReply={copiedReply}
+              onCopyReply={onCopyReply}
+            />
           ))}
-          {filtered.length === 0 && (
+          {sorted.length === 0 && (
             <div className={`text-center py-12 ${textSub}`}>
               No HR emails match the selected filters.
             </div>

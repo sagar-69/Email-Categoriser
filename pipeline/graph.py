@@ -62,7 +62,15 @@ def _hr_store_node(state: EmailState) -> dict:
     Persists the HR-classified email to SQLite.
     Includes both standard fallback labels and HR-specific fields.
     """
-    from data.store import upsert_email
+    from data.store import load_email_record, upsert_email
+
+    def first_value(*values, default=""):
+        for value in values:
+            if value not in (None, ""):
+                return value
+        return default
+
+    existing = load_email_record(state["id"], owner_email=state.get("owner_email"))
     record = {
         "id":                state["id"],
         "thread_id":         state.get("thread_id", ""),
@@ -72,12 +80,12 @@ def _hr_store_node(state: EmailState) -> dict:
         "snippet":           state["snippet"],
         "body_preview":      state.get("body_preview", ""),
         "received_at":       state["received_at"],
-        # Standard labels get neutral defaults for HR-classified emails
-        "email_type_label":  state.get("email_type_label", "GENERAL"),
-        "action_label":      state.get("action_label", "FYI"),
-        "dept_label":        state.get("dept_label", "HR_ADMIN"),
-        "priority_label":    state.get("priority_label", "STANDARD"),
-        "reason":            state.get("hr_reasoning", ""),
+        # Preserve standard labels when this email was already classified.
+        "email_type_label":  first_value(state.get("email_type_label"), existing.get("email_type_label") if existing else None, default="GENERAL"),
+        "action_label":      first_value(state.get("action_label"), existing.get("action_label") if existing else None, default="FYI"),
+        "dept_label":        first_value(state.get("dept_label"), existing.get("dept_label") if existing else None, default="HR_ADMIN"),
+        "priority_label":    first_value(state.get("priority_label"), existing.get("priority_label") if existing else None, default="STANDARD"),
+        "reason":            first_value(existing.get("reason") if existing else None, state.get("hr_reasoning"), default=""),
         "retry_count":       state.get("retry_count", 0),
         "status":            state.get("status", "failed"),
         # HR-specific fields
@@ -86,8 +94,9 @@ def _hr_store_node(state: EmailState) -> dict:
         "hr_matched_keywords": state.get("hr_matched_keywords", "[]"),
         "classification_mode": "hr",
         "hr_reasoning":        state.get("hr_reasoning", ""),
+        "is_read":             existing.get("is_read") if existing else 0,
         # Multi-account support
-        "owner_email":         state.get("owner_email", None),
+        "owner_email":         first_value(state.get("owner_email"), existing.get("owner_email") if existing else None, default=None),
     }
     upsert_email(record)
     return {}

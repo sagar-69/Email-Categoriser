@@ -571,3 +571,113 @@ React renders: metrics → charts → email list
 | **Separation of Concerns** | Auth, fetch, classify, store, serve, display are independent modules |
 | **Idempotency** | `INSERT OR REPLACE` + deduplication means re-running is safe |
 | **Observability** | Loguru logging at every step; Rich CLI output for human readability |
+
+---
+
+## 10. June 26, 2026 Architecture Addendum
+
+This addendum documents the current dashboard/API behavior added during the June 26 reliability and HR dashboard pass. Existing architecture sections remain unchanged above.
+
+### 10.1 Refresh Flow Hardening
+
+The React dashboard refresh flow now treats classification and data reload as separate phases:
+
+```
+User clicks Refresh
+        │
+        ▼
+POST /api/classify
+        │
+        ├── Success → reload Standard + HR data from SQLite
+        │
+        └── Failure → preserve visible dashboard error
+                    → still reload existing SQLite data
+```
+
+Important details:
+- `handleRefresh()` still reloads persisted data after every attempt, so the UI stays in sync with SQLite.
+- Refresh errors are preserved through the reload step instead of being cleared immediately.
+- HR mode renders its own error banner so failures are visible while staying on the HR dashboard.
+- The full-screen API error state is reserved for the case where both Standard and HR datasets are empty.
+- `/api/classify` now returns proper HTTP error responses for invalid modes and runtime classification failures.
+
+### 10.2 Auth-Aware Dashboard Requests
+
+Protected dashboard calls now use an account-aware retry helper:
+
+```
+apiFetchWithAccountRetry()
+        │
+        ├── First request with current JWT
+        │
+        ├── If 401 and owner account exists:
+        │       POST /api/auth/token?email=<owner>
+        │       save refreshed JWT
+        │       retry original request once
+        │
+        └── Return final response
+```
+
+This helper is used by:
+- `/api/emails`
+- `/api/unread-count`
+- `/api/models`
+- `/api/classify`
+- `/api/emails/{id}/read`
+- `/api/emails/{id}/reply-suggestions`
+
+### 10.3 HR Dashboard Sorting
+
+HR mode now applies client-side sorting after the existing unread/search/category filters:
+
+```
+HR emails from API
+        │
+        ▼
+Filter read emails + selected HR categories + search
+        │
+        ▼
+Sort by selected mode
+        │
+        ▼
+Render top 100 cards and export sorted result set
+```
+
+Supported HR sort modes:
+- **Urgent First**: `URGENT` → `STANDARD` → `LOW_PRIORITY`, with most recent as tie-breaker
+- **Most Recent First**: descending `received_at`
+- **Action Required First**: `ACTION_REQUIRED` → `AWAITING_REPLY` → `FYI` → `REFERENCE`, with most recent as tie-breaker
+
+### 10.4 HR Export Path
+
+HR exports now mirror the Standard dashboard export pattern while using HR-specific columns.
+
+| Export | Library / API | Dataset |
+|--------|---------------|---------|
+| CSV | Browser `Blob` download | Filtered + sorted HR emails |
+| Excel | `xlsx` | Filtered + sorted HR emails |
+| PDF | `jspdf` + `jspdf-autotable` | Filtered + sorted HR emails |
+
+HR export columns:
+- `subject`
+- `sender`
+- `sender_email`
+- `hr_category`
+- `hr_confidence`
+- `hr_reasoning`
+- `received_at`
+
+### 10.5 Shared AI Features Across Modes
+
+Standard and HR dashboards now share these user-facing AI controls:
+- Ollama model switcher
+- Refresh/re-classification with selected model
+- AI Auto-Reply Suggestions
+
+The HR dashboard passes reply state and callbacks into `HREmailCard`, allowing each HR card to request suggestions and copy generated replies without duplicating backend logic.
+
+### 10.6 Verification Snapshot
+
+Latest verification after the June 26 changes:
+- React build: `npm run build` passed.
+- Python tests: `python3 -m pytest -q` passed with `68 passed`.

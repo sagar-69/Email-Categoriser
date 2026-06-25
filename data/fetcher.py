@@ -41,6 +41,18 @@ def _parse_sender(raw_sender: str) -> tuple[str, str]:
     return raw_sender.strip(), raw_sender.strip()
 
 
+def _received_at(msg: dict, fallback_date: str) -> str:
+    """Prefer Gmail's internal timestamp; fall back to the Date header."""
+    internal_date = msg.get("internalDate")
+    if internal_date:
+        try:
+            timestamp = int(internal_date) / 1000
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+        except (TypeError, ValueError):
+            pass
+    return fallback_date
+
+
 def _parse_message(msg: dict) -> dict | None:
     """Parse a single Gmail API message response into a flat dict."""
     try:
@@ -61,7 +73,7 @@ def _parse_message(msg: dict) -> dict | None:
             "sender_email": sender_email,
             "snippet":      snippet,
             "body_preview": body_text[:400],
-            "received_at":  date_str,
+            "received_at":  _received_at(msg, date_str),
         }
     except Exception as exc:
         logger.warning("Failed to parse message {}: {}", msg.get("id", "?"), exc)

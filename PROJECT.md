@@ -358,3 +358,41 @@ rich==13.7.1
 - [ ] Add database migrations (Alembic)
 - [x] Add API authentication (JWT tokens) → **Done:** PyJWT-based auth with `get_current_user` dependency on all protected routes
 - [x] Add request logging middleware → **Done:** Custom `RequestLoggingMiddleware` with Loguru, logs method/path/status/timing
+
+---
+
+## 10. June 26, 2026 Implementation Notes
+
+The following fixes and feature additions were completed without removing existing functionality and without modifying `README.md`.
+
+### Refresh Button Reliability
+- [x] Fixed a dashboard refresh issue where classification failures could be hidden after the automatic data reload.
+- [x] `handleRefresh()` now preserves refresh errors when the follow-up SQLite reload completes.
+- [x] HR mode now shows a visible error banner instead of silently keeping the same data.
+- [x] The full-screen connection error only appears when both Standard and HR datasets are empty, so existing HR results are not hidden by a refresh failure.
+- [x] `/api/classify` now validates the requested classification mode and returns proper HTTP errors for invalid modes or pipeline failures.
+
+### HR Classification Dashboard Enhancements
+- [x] Added HR email sorting controls:
+  - [x] **Urgent First**
+  - [x] **Most Recent First**
+  - [x] **Action Required First**
+- [x] HR sorting uses existing email fields (`priority_label`, `received_at`, `action_label`) and keeps the current search/category filters intact.
+- [x] Added HR export options:
+  - [x] Existing CSV export preserved
+  - [x] Excel export via `xlsx`
+  - [x] PDF export via `jspdf` + `jspdf-autotable`
+- [x] HR exports operate on the currently filtered and sorted HR email list.
+
+### Earlier June 26 Dashboard/API Fixes
+- [x] Fixed Vite proxy protocol detection so existing local certificate files no longer force HTTPS when FastAPI is running over HTTP.
+- [x] Added account-aware JWT retry logic for protected dashboard requests.
+- [x] Made the Ollama model switcher visible in both Standard and HR dashboards.
+- [x] Added model loading/error states so the selector does not disappear if `/api/models` fails.
+- [x] Added AI Auto-Reply Suggestions to HR email cards, matching the existing Standard dashboard behavior.
+- [x] Kept the Standard dashboard CSV/Excel/PDF export behavior unchanged.
+
+### Verification
+- [x] Frontend production build passed with `npm run build`.
+- [x] Backend/unit test suite passed with `python3 -m pytest -q` (`68 passed`).
+- [x] Existing large-bundle Vite warning remains informational and unrelated to these changes.

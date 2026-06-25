@@ -260,6 +260,9 @@ def classify(req: ClassifyRequest = ClassifyRequest(), _user: str = Depends(get_
     Trigger the classification pipeline to fetch and classify new emails.
     Rate-limited to one request per 10 seconds to protect the local Ollama instance.
     """
+    if req.mode not in {"standard", "hr"}:
+        raise HTTPException(status_code=400, detail="mode must be 'standard' or 'hr'.")
+
     global _last_classify_time
     now = time.time()
     if now - _last_classify_time < _CLASSIFY_COOLDOWN:
@@ -280,4 +283,4 @@ def classify(req: ClassifyRequest = ClassifyRequest(), _user: str = Depends(get_
         )
         return {"status": "success", "message": f"Classification complete (mode: {req.mode})."}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

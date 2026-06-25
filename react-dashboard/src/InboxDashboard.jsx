@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ClassificationModeModal from './ClassificationModeModal';
 import HRDashboard from './HRDashboard';
-import { apiFetch } from './App';
+import { apiFetch, setToken } from './App';
 
 // ── Config / Constants (matches Python backend settings.py) ─────────
 const EMAIL_TYPE_DISPLAY = {
@@ -77,6 +77,13 @@ const PRIORITY_COLOURS = {
   LOW_PRIORITY: '#1D9E75',
 };
 
+const normalizeLabel = (value) => String(value || '').trim().toUpperCase();
+
+const matchesSelected = (selected, value) => {
+  if (selected.length === 0) return false;
+  return selected.includes(normalizeLabel(value));
+};
+
 const TAG_BG = {
   light: {
     SALES: 'bg-blue-100 text-blue-800 border-blue-200',
@@ -129,36 +136,57 @@ function buildQuery(params) {
   return '?' + filtered.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 }
 
+async function refreshTokenForAccount(ownerEmail) {
+  if (!ownerEmail) return false;
+  const tokenRes = await fetch(`${API_BASE}/auth/token?email=${encodeURIComponent(ownerEmail)}`, { method: 'POST' });
+  if (!tokenRes.ok) return false;
+  const tokenData = await tokenRes.json();
+  if (!tokenData.token) return false;
+  setToken(tokenData.token);
+  return true;
+}
+
+async function apiFetchWithAccountRetry(url, options = {}, ownerEmail = null) {
+  let res = await apiFetch(url, options);
+  if (res.status === 401 && ownerEmail && await refreshTokenForAccount(ownerEmail)) {
+    res = await apiFetch(url, options);
+  }
+  return res;
+}
+
 async function fetchEmails(mode = 'standard', ownerEmail = null) {
   const query = buildQuery({ mode: mode === 'hr' ? 'hr' : undefined, owner_email: ownerEmail });
-  const res = await apiFetch(`${API_BASE}/emails${query}`);
+  const res = await apiFetchWithAccountRetry(`${API_BASE}/emails${query}`, {}, ownerEmail);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   const json = await res.json();
   return json.data || json;
 }
 
-async function apiMarkRead(emailId) {
-  const res = await apiFetch(`${API_BASE}/emails/${emailId}/read`, { method: 'PATCH' });
+async function apiMarkRead(emailId, ownerEmail = null) {
+  const res = await apiFetchWithAccountRetry(`${API_BASE}/emails/${emailId}/read`, { method: 'PATCH' }, ownerEmail);
   if (!res.ok) throw new Error(`Failed to mark read: ${res.status}`);
   return res.json();
 }
 
 async function fetchUnreadCounts(ownerEmail = null) {
   const query = buildQuery({ owner_email: ownerEmail });
-  const res = await apiFetch(`${API_BASE}/unread-count${query}`);
+  const res = await apiFetchWithAccountRetry(`${API_BASE}/unread-count${query}`, {}, ownerEmail);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
 
-async function fetchModels() {
-  const res = await apiFetch(`${API_BASE}/models`);
-  if (!res.ok) return { models: [], current: '' };
+async function fetchModels(ownerEmail = null) {
+  const res = await apiFetchWithAccountRetry(`${API_BASE}/models`, {}, ownerEmail);
+  if (!res.ok) {
+    const details = await res.text().catch(() => '');
+    throw new Error(details || `Model API error: ${res.status}`);
+  }
   return res.json();
 }
 
-async function fetchReplySuggestions(emailId, modelName = null) {
+async function fetchReplySuggestions(emailId, modelName = null, ownerEmail = null) {
   const query = modelName ? `?model_name=${encodeURIComponent(modelName)}` : '';
-  const res = await apiFetch(`${API_BASE}/emails/${emailId}/reply-suggestions${query}`, { method: 'POST' });
+  const res = await apiFetchWithAccountRetry(`${API_BASE}/emails/${emailId}/reply-suggestions${query}`, { method: 'POST' }, ownerEmail);
   if (!res.ok) throw new Error(`Reply API error: ${res.status}`);
   return res.json();
 }
@@ -185,32 +213,49 @@ const MetricCard = ({ label, value, icon: Icon, colorClass, darkMode }) => (
   </div>
 );
 
-const FilterSelect = ({ label, options, selected, onChange, darkMode }) => (
-  <div className="mb-4">
-    <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-stone-300' : 'text-stone-700'}`}>
-      {label}
-    </label>
-    <div className={`rounded-lg border p-2 max-h-32 overflow-y-auto ${darkMode ? 'bg-stone-900 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
-      {Object.entries(options).map(([key, display]) => (
-        <label key={key} className="flex items-center gap-2 py-1 cursor-pointer hover:opacity-80">
+const FilterSelect = ({ label, options, selected, onChange, darkMode }) => {
+  const optionKeys = Object.keys(options);
+  const allSelected = selected.length === optionKeys.length;
+
+  const toggleOption = (key) => {
+    onChange(prev => {
+      const current = Array.isArray(prev) ? prev : [];
+      return current.includes(key)
+        ? current.filter(k => k !== key)
+        : [...current, key];
+    });
+  };
+
+  return (
+    <div className="mb-4">
+      <label className={`block text-sm font-medium mb-1.5 ${darkMode ? 'text-stone-300' : 'text-stone-700'}`}>
+        {label}
+      </label>
+      <div className={`rounded-lg border p-2 max-h-40 overflow-y-auto ${darkMode ? 'bg-stone-900 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
+        <label className={`flex items-center gap-2 py-1.5 mb-1 border-b cursor-pointer hover:opacity-80 ${darkMode ? 'border-stone-800' : 'border-stone-200'}`}>
           <input
             type="checkbox"
-            checked={selected.includes(key)}
-            onChange={() => {
-              if (selected.includes(key)) {
-                onChange(selected.filter(k => k !== key));
-              } else {
-                onChange([...selected, key]);
-              }
-            }}
+            checked={allSelected}
+            onChange={() => onChange(allSelected ? [] : optionKeys)}
             className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
           />
-          <span className={`text-sm ${darkMode ? 'text-stone-300' : 'text-stone-600'}`}>{display}</span>
+          <span className={`text-sm font-medium ${darkMode ? 'text-stone-200' : 'text-stone-700'}`}>All</span>
         </label>
-      ))}
+        {Object.entries(options).map(([key, display]) => (
+          <label key={key} className="flex items-center gap-2 py-1 cursor-pointer hover:opacity-80">
+            <input
+              type="checkbox"
+              checked={selected.includes(key)}
+              onChange={() => toggleOption(key)}
+              className="rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+            />
+            <span className={`text-sm ${darkMode ? 'text-stone-300' : 'text-stone-600'}`}>{display}</span>
+          </label>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const CustomTooltip = ({ active, payload, label, darkMode }) => {
   if (!active || !payload) return null;
@@ -242,6 +287,8 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   const [availableModels, setAvailableModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelError, setModelError] = useState('');
 
   // Auto-reply state
   const [replyLoading, setReplyLoading] = useState({});
@@ -270,11 +317,22 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
   // Load available Ollama models
   useEffect(() => {
-    fetchModels().then(data => {
+    let cancelled = false;
+    setModelsLoading(true);
+    setModelError('');
+    fetchModels(ownerEmail).then(data => {
+      if (cancelled) return;
       setAvailableModels(data.models || []);
-      setSelectedModel(data.current || '');
-    }).catch(() => {});
-  }, []);
+      setSelectedModel(data.current || selectedModel || '');
+    }).catch((err) => {
+      if (cancelled) return;
+      setAvailableModels([]);
+      setModelError(err.message || 'Could not load models');
+    }).finally(() => {
+      if (!cancelled) setModelsLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [ownerEmail]);
 
   // Modal callback
   const handleModeSelect = useCallback((mode, remember) => {
@@ -287,9 +345,9 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   }, []);
 
   // Fetch ALL emails (both modes) from the API
-  const loadAllData = useCallback(async () => {
+  const loadAllData = useCallback(async ({ preserveError = false } = {}) => {
     setLoading(true);
-    setError(null);
+    if (!preserveError) setError(null);
     try {
       const [stdEmails, hrEmails, counts] = await Promise.all([
         fetchEmails('standard', ownerEmail),
@@ -332,10 +390,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     return data.filter(d => {
       // Skip read emails
       if (d.is_read) return false;
-      const matchesTags = selEmailType.includes(d.email_type_label) &&
-                          selAction.includes(d.action_label) &&
-                          selDept.includes(d.dept_label) &&
-                          selPriority.includes(d.priority_label);
+      const matchesTags = matchesSelected(selEmailType, d.email_type_label) &&
+                          matchesSelected(selAction, d.action_label) &&
+                          matchesSelected(selDept, d.dept_label) &&
+                          matchesSelected(selPriority, d.priority_label);
       if (!matchesTags) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -352,12 +410,20 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     const df = [...filtered];
     if (sortBy === 'Priority (urgent first)') {
       const order = { URGENT: 0, STANDARD: 1, LOW_PRIORITY: 2 };
-      df.sort((a, b) => (order[a.priority_label] ?? 99) - (order[b.priority_label] ?? 99));
+      df.sort((a, b) => {
+        const priorityDiff = (order[normalizeLabel(a.priority_label)] ?? 99) - (order[normalizeLabel(b.priority_label)] ?? 99);
+        if (priorityDiff !== 0) return priorityDiff;
+        return new Date(b.received_at) - new Date(a.received_at);
+      });
     } else if (sortBy === 'Most recent') {
       df.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
     } else {
       const order = { ACTION_REQUIRED: 0, AWAITING_REPLY: 1, FYI: 2, REFERENCE: 3 };
-      df.sort((a, b) => (order[a.action_label] ?? 99) - (order[b.action_label] ?? 99));
+      df.sort((a, b) => {
+        const actionDiff = (order[normalizeLabel(a.action_label)] ?? 99) - (order[normalizeLabel(b.action_label)] ?? 99);
+        if (actionDiff !== 0) return actionDiff;
+        return new Date(b.received_at) - new Date(a.received_at);
+      });
     }
     return df;
   }, [filtered, sortBy]);
@@ -365,7 +431,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   // Chart data preparations
   const emailTypeData = useMemo(() => {
     const counts = {};
-    filtered.forEach(d => counts[d.email_type_label] = (counts[d.email_type_label] || 0) + 1);
+    filtered.forEach(d => {
+      const key = normalizeLabel(d.email_type_label);
+      counts[key] = (counts[key] || 0) + 1;
+    });
     return Object.entries(EMAIL_TYPE_DISPLAY).map(([key, label]) => ({
       name: label,
       value: counts[key] || 0,
@@ -375,7 +444,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
   const actionData = useMemo(() => {
     const counts = {};
-    filtered.forEach(d => counts[d.action_label] = (counts[d.action_label] || 0) + 1);
+    filtered.forEach(d => {
+      const key = normalizeLabel(d.action_label);
+      counts[key] = (counts[key] || 0) + 1;
+    });
     return Object.entries(ACTION_DISPLAY).map(([key, label]) => ({
       name: label,
       value: counts[key] || 0,
@@ -385,7 +457,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
   const deptData = useMemo(() => {
     const counts = {};
-    filtered.forEach(d => counts[d.dept_label] = (counts[d.dept_label] || 0) + 1);
+    filtered.forEach(d => {
+      const key = normalizeLabel(d.dept_label);
+      counts[key] = (counts[key] || 0) + 1;
+    });
     return Object.entries(DEPT_DISPLAY).map(([key, label]) => ({
       name: label,
       value: counts[key] || 0,
@@ -395,7 +470,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
   const priorityData = useMemo(() => {
     const counts = {};
-    filtered.forEach(d => counts[d.priority_label] = (counts[d.priority_label] || 0) + 1);
+    filtered.forEach(d => {
+      const key = normalizeLabel(d.priority_label);
+      counts[key] = (counts[key] || 0) + 1;
+    });
     return Object.entries(PRIORITY_DISPLAY).map(([key, label]) => ({
       name: label,
       value: counts[key] || 0,
@@ -412,7 +490,8 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     filtered.forEach(d => {
       const date = new Date(d.received_at).toISOString().split('T')[0];
       if (!daily[date]) daily[date] = { date, URGENT: 0, STANDARD: 0, LOW_PRIORITY: 0 };
-      daily[date][d.priority_label]++;
+      const priority = normalizeLabel(d.priority_label);
+      if (daily[date][priority] !== undefined) daily[date][priority]++;
     });
     return Object.values(daily).sort((a, b) => a.date.localeCompare(b.date));
   }, [filtered]);
@@ -420,10 +499,10 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   // All emails matching filters (including read) — used for "Total emails" metric
   const allMatchingFilters = useMemo(() => {
     return data.filter(d => {
-      const matchesTags = selEmailType.includes(d.email_type_label) &&
-                          selAction.includes(d.action_label) &&
-                          selDept.includes(d.dept_label) &&
-                          selPriority.includes(d.priority_label);
+      const matchesTags = matchesSelected(selEmailType, d.email_type_label) &&
+                          matchesSelected(selAction, d.action_label) &&
+                          matchesSelected(selDept, d.dept_label) &&
+                          matchesSelected(selPriority, d.priority_label);
       if (!matchesTags) return false;
       if (!searchQuery) return true;
       const q = searchQuery.toLowerCase();
@@ -455,21 +534,22 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
       hr: Math.max(0, prev.hr - 1),
     }));
     try {
-      await apiMarkRead(emailId);
+      await apiMarkRead(emailId, ownerEmail);
     } catch (err) {
       console.error('Failed to mark email as read:', err);
       // Revert on failure
       loadAllData();
     }
-  }, [loadAllData]);
+  }, [loadAllData, ownerEmail]);
 
   // Handlers
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     setError(null);
+    let refreshFailed = false;
     try {
       // Trigger Python pipeline to fetch & classify in current mode (with selected model)
-      const res = await apiFetch(`${API_BASE}/classify`, {
+      const res = await apiFetchWithAccountRetry(`${API_BASE}/classify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -478,23 +558,29 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
           owner_email: ownerEmail,
           model_name: selectedModel || null,
         }),
-      });
+      }, ownerEmail);
       if (!res.ok) {
-        throw new Error(`Classification failed: ${res.status}`);
+        const details = await res.text().catch(() => '');
+        throw new Error(details || `Classification failed: ${res.status}`);
+      }
+      const result = await res.json();
+      if (result.status === 'error') {
+        throw new Error(result.message || 'Classification failed.');
       }
     } catch (err) {
       console.error("Network error during classification", err);
-      setError(`Refresh failed: ${err.message}. Ensure backend is running.`);
+      refreshFailed = true;
+      setError(`Refresh failed: ${err.message}. Ensure backend, Gmail auth, and Ollama are running.`);
     }
     // Always reload ALL data from SQLite afterwards
-    await loadAllData();
+    await loadAllData({ preserveError: refreshFailed });
   }, [loadAllData, classificationMode, ownerEmail, selectedModel]);
 
   // Auto-reply handler
   const handleSuggestReplies = useCallback(async (emailId) => {
     setReplyLoading(prev => ({ ...prev, [emailId]: true }));
     try {
-      const data = await fetchReplySuggestions(emailId, selectedModel || null);
+      const data = await fetchReplySuggestions(emailId, selectedModel || null, ownerEmail);
       setReplySuggestions(prev => ({ ...prev, [emailId]: data.suggestions }));
     } catch (err) {
       console.error('Failed to fetch reply suggestions:', err);
@@ -502,7 +588,7 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     } finally {
       setReplyLoading(prev => ({ ...prev, [emailId]: false }));
     }
-  }, [selectedModel]);
+  }, [selectedModel, ownerEmail]);
 
   const handleCopyReply = useCallback((text, replyKey) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -564,8 +650,78 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     doc.save("inbox_intel_export.pdf");
   }, [sorted]);
 
+  const ModelSwitcher = ({ accent = 'sky' }) => {
+    const accentText = accent === 'amber'
+      ? darkMode ? 'text-amber-300' : 'text-amber-700'
+      : darkMode ? 'text-sky-300' : 'text-sky-700';
+    const accentBg = accent === 'amber'
+      ? darkMode ? 'bg-amber-900/30' : 'bg-amber-50'
+      : darkMode ? 'bg-sky-900/30' : 'bg-sky-50';
+    const activeDot = accent === 'amber' ? 'bg-amber-500' : 'bg-sky-500';
+
+    return (
+      <div className="relative">
+        <button
+          onClick={() => setShowModelMenu(!showModelMenu)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+            darkMode
+              ? 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700'
+              : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+          }`}
+          title="Select Ollama model"
+        >
+          <Cpu className="w-4 h-4" />
+          <span className="max-w-[140px] truncate">
+            {modelsLoading ? 'Loading models...' : selectedModel || 'Select model'}
+          </span>
+          <ChevronDown className={`w-3 h-3 transition-transform ${showModelMenu ? 'rotate-180' : ''}`} />
+        </button>
+        {showModelMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowModelMenu(false)} />
+            <div className={`absolute right-0 top-full mt-1 w-72 rounded-xl border shadow-xl z-50 overflow-hidden ${darkMode ? 'bg-stone-800 border-stone-700' : 'bg-white border-stone-200'}`}>
+              <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-stone-500 border-b border-stone-700' : 'text-stone-400 border-b border-stone-100'}`}>Ollama Models</div>
+              <div className="py-1 max-h-56 overflow-y-auto">
+                {modelsLoading && (
+                  <div className={`px-3 py-3 text-sm flex items-center gap-2 ${textSub}`}>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading local models...
+                  </div>
+                )}
+                {!modelsLoading && availableModels.length === 0 && (
+                  <div className={`px-3 py-3 text-sm ${textSub}`}>
+                    {modelError ? 'No models loaded. Check Ollama and try refreshing.' : 'No local models found.'}
+                  </div>
+                )}
+                {availableModels.map(m => (
+                  <button
+                    key={m.name}
+                    onClick={() => { setSelectedModel(m.name); setShowModelMenu(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
+                      m.name === selectedModel
+                        ? `${accentBg} ${accentText}`
+                        : darkMode ? 'text-stone-300 hover:bg-stone-700' : 'text-stone-700 hover:bg-stone-50'
+                    }`}
+                  >
+                    <span className="truncate">{m.name}</span>
+                    {m.name === selectedModel && <span className={`w-2 h-2 rounded-full ${activeDot} flex-shrink-0`} />}
+                  </button>
+                ))}
+              </div>
+              {modelError && (
+                <div className={`px-3 py-2 text-xs border-t ${darkMode ? 'border-stone-700 text-stone-500' : 'border-stone-100 text-stone-400'}`}>
+                  {modelError}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
   // Error state
-  if (error && data.length === 0) {
+  if (error && data.length === 0 && hrData.length === 0) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${bgMain}`}>
         <div className={`rounded-xl border p-8 max-w-md text-center ${bgCard} ${borderCol}`}>
@@ -773,6 +929,7 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
               <p className={`text-sm mt-1 ${textSub}`}>HR email classification dashboard — Powered by local AI</p>
             </div>
             <div className="flex items-center gap-3">
+              <ModelSwitcher accent="amber" />
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-yellow-400' : 'bg-white border-stone-200 text-stone-600'}`}
@@ -793,6 +950,19 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
             </div>
           </div>
 
+          {/* Banner Error for HR mode */}
+          {error && (
+            <div className="mx-6 mt-4 p-4 rounded-lg bg-red-100 text-red-800 border border-red-200 flex items-center justify-between">
+              <div className="flex items-center">
+                <XCircle className="w-5 h-5 mr-2" />
+                <span className="text-sm font-medium">{error}</span>
+              </div>
+              <button onClick={() => setError(null)} className="text-red-600 hover:text-red-900 transition-colors">
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* Loading state for HR */}
           {loading && hrData.length === 0 && (
             <div className="flex items-center justify-center py-20">
@@ -803,7 +973,16 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
           {/* HR Dashboard */}
           {(!loading || hrData.length > 0) && (
-            <HRDashboard emails={hrData} darkMode={darkMode} onMarkRead={handleMarkRead} />
+            <HRDashboard
+              emails={hrData}
+              darkMode={darkMode}
+              onMarkRead={handleMarkRead}
+              onSuggestReplies={handleSuggestReplies}
+              replyLoading={replyLoading}
+              replySuggestions={replySuggestions}
+              copiedReply={copiedReply}
+              onCopyReply={handleCopyReply}
+            />
           )}
         </>
       ) : (
@@ -838,44 +1017,7 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
               <p className={`text-sm mt-1 ${textSub}`}>Smart email classification dashboard — Live data from SQLite</p>
             </div>
             <div className="flex items-center gap-3">
-              {/* Model Switcher Dropdown */}
-              {availableModels.length > 0 && (
-                <div className="relative">
-                  <button
-                    onClick={() => setShowModelMenu(!showModelMenu)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
-                    title="Select Ollama model"
-                  >
-                    <Cpu className="w-4 h-4" />
-                    <span className="max-w-[120px] truncate">{selectedModel || 'Model'}</span>
-                    <ChevronDown className={`w-3 h-3 transition-transform ${showModelMenu ? 'rotate-180' : ''}`} />
-                  </button>
-                  {showModelMenu && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowModelMenu(false)} />
-                      <div className={`absolute right-0 top-full mt-1 w-64 rounded-xl border shadow-xl z-50 overflow-hidden ${darkMode ? 'bg-stone-800 border-stone-700' : 'bg-white border-stone-200'}`}>
-                        <div className={`px-3 py-2 text-xs font-bold uppercase tracking-wider ${darkMode ? 'text-stone-500 border-b border-stone-700' : 'text-stone-400 border-b border-stone-100'}`}>Ollama Models</div>
-                        <div className="py-1 max-h-48 overflow-y-auto">
-                          {availableModels.map(m => (
-                            <button
-                              key={m.name}
-                              onClick={() => { setSelectedModel(m.name); setShowModelMenu(false); }}
-                              className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${
-                                m.name === selectedModel
-                                  ? darkMode ? 'bg-sky-900/30 text-sky-300' : 'bg-sky-50 text-sky-700'
-                                  : darkMode ? 'text-stone-300 hover:bg-stone-700' : 'text-stone-700 hover:bg-stone-50'
-                              }`}
-                            >
-                              <span className="truncate">{m.name}</span>
-                              {m.name === selectedModel && <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0" />}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+              <ModelSwitcher accent="sky" />
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-yellow-400' : 'bg-white border-stone-200 text-stone-600'}`}

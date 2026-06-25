@@ -275,3 +275,62 @@
 | TBD | 🏗️ | Database migrations (Alembic) |
 | TBD | ✅ | Custom classification rules |
 | TBD | 🔧 | LLM provider abstraction (Ollama/OpenAI/Anthropic) |
+
+---
+
+## Addendum — June 26, 2026
+
+#### [🔧] Fixed — Vite Proxy Protocol Mismatch
+- **Date**: 2026-06-26
+- **Change**: Updated `react-dashboard/vite.config.js` so the API proxy no longer switches to HTTPS merely because local certificate files exist.
+- **Rationale**: Vite was attempting TLS traffic against a plain HTTP FastAPI server, causing `wrong version number` / `Invalid HTTP request received` errors.
+- **Impact**: `/api/*` requests now proxy to HTTP unless SSL is explicitly enabled through `.env` with valid `SSL_KEYFILE` and `SSL_CERTFILE`.
+
+#### [🔧] Fixed — Refresh Button Error Visibility
+- **Date**: 2026-06-26
+- **Change**: Updated the dashboard refresh flow so classification errors remain visible after the automatic SQLite reload.
+- **Rationale**: Refresh failures could be hidden because the follow-up data reload cleared the error state.
+- **Impact**: Users now see actionable refresh failures in both Standard and HR modes while existing data remains visible.
+
+#### [🔧] Fixed — `/api/classify` Error Semantics
+- **Date**: 2026-06-26
+- **Change**: Added mode validation and replaced success-shaped error payloads with proper HTTP errors.
+- **Rationale**: The frontend needs accurate HTTP status handling to tell successful refreshes from failed classifications.
+- **Impact**: Invalid mode returns HTTP 400; runtime classification errors return HTTP 500.
+
+#### [✅] Added — Account-Aware API Retry
+- **Date**: 2026-06-26
+- **Change**: Added a frontend helper that retries protected API calls once after refreshing the JWT for the selected Google account.
+- **Rationale**: Protected endpoints could fail if the dashboard loaded before a usable JWT was available or after a token expired.
+- **Impact**: Email loading, unread counts, model listing, read marking, refresh, and reply suggestions are more reliable.
+
+#### [✅] Added — Model Switcher in HR Mode
+- **Date**: 2026-06-26
+- **Change**: Added the Ollama model switcher to the HR dashboard header and made model loading/error states visible.
+- **Rationale**: The selector previously existed only in Standard mode and could disappear when `/api/models` failed.
+- **Impact**: Users can choose the active Ollama model before refreshing either Standard or HR classifications.
+
+#### [✅] Added — AI Auto-Reply Suggestions in HR Mode
+- **Date**: 2026-06-26
+- **Change**: Extended `HRDashboard` and `HREmailCard` to support the existing AI reply suggestion workflow.
+- **Rationale**: HR-classified emails should have the same local reply drafting capability as Standard emails.
+- **Impact**: HR email cards now show a "Suggest Replies" button, generated reply suggestions, and copy-to-clipboard behavior.
+
+#### [✅] Added — HR Dashboard Sorting Controls
+- **Date**: 2026-06-26
+- **Change**: Added HR sort options: **Urgent First**, **Most Recent First**, and **Action Required First**.
+- **Rationale**: HR mode needed the same triage ergonomics as the Standard inbox view.
+- **Impact**: Users can reorder the filtered HR email list without changing category filters or search.
+
+#### [✅] Added — HR Excel and PDF Export
+- **Date**: 2026-06-26
+- **Change**: Added HR export options for Excel (`.xlsx`) and PDF (`.pdf`) alongside the existing CSV export.
+- **Rationale**: HR mode needed business-report-ready export formats, matching the Standard dashboard.
+- **Impact**: HR exports now use the currently filtered and sorted HR email list.
+
+#### [✅] Verified — Regression Checks
+- **Date**: 2026-06-26
+- **Checks**:
+  - `npm run build` passed for the React dashboard.
+  - `python3 -m pytest -q` passed with `68 passed`.
+- **Impact**: Existing backend tests and frontend build remain healthy after the dashboard/API updates.

@@ -1,5 +1,8 @@
 import React from 'react';
-import { Calendar, DollarSign, Users, LogOut, FileText, CheckCircle } from 'lucide-react';
+import {
+  Calendar, DollarSign, Users, LogOut, FileText,
+  CheckCircle, Sparkles, Loader2, Copy,
+} from 'lucide-react';
 
 const HR_CATEGORY_CONFIG = {
   LEAVE_OD:     { label: 'Leave & OD',     color: '#3b82f6', icon: Calendar },
@@ -17,7 +20,16 @@ const HR_CATEGORY_CONFIG = {
  *   darkMode:   boolean
  *   onMarkRead: (emailId) => void — called when an unread email is clicked
  */
-export default function HREmailCard({ email, darkMode, onMarkRead }) {
+export default function HREmailCard({
+  email,
+  darkMode,
+  onMarkRead,
+  onSuggestReplies,
+  replyLoading = false,
+  replySuggestions,
+  copiedReply,
+  onCopyReply,
+}) {
   const cat = HR_CATEGORY_CONFIG[email.hr_category] || HR_CATEGORY_CONFIG.HR_ADMIN;
   const Icon = cat.icon;
   const confidence = parseFloat(email.hr_confidence) || 0;
@@ -75,19 +87,75 @@ export default function HREmailCard({ email, darkMode, onMarkRead }) {
           )}
         </div>
 
-        {/* Right: Category badge */}
-        <div
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border"
-          style={{
-            backgroundColor: `${cat.color}15`,
-            color: cat.color,
-            borderColor: `${cat.color}30`,
-          }}
-        >
-          <Icon className="w-3.5 h-3.5" />
-          {cat.label}
+        {/* Right: Category and actions */}
+        <div className="flex flex-col items-end gap-2">
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border"
+            style={{
+              backgroundColor: `${cat.color}15`,
+              color: cat.color,
+              borderColor: `${cat.color}30`,
+            }}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {cat.label}
+          </div>
+          {onSuggestReplies && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSuggestReplies(email.id);
+              }}
+              disabled={replyLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                darkMode
+                  ? 'bg-violet-900/30 border-violet-700/50 text-violet-300 hover:bg-violet-900/50'
+                  : 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
+              } disabled:opacity-50`}
+              title="Generate AI reply suggestions"
+            >
+              {replyLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              {replyLoading ? 'Thinking...' : 'Suggest Replies'}
+            </button>
+          )}
         </div>
       </div>
+
+      {replySuggestions && (
+        <div className={`mt-3 pt-3 border-t space-y-2 ${darkMode ? 'border-stone-700' : 'border-stone-200'}`}>
+          <div className={`text-xs font-semibold flex items-center gap-1.5 ${darkMode ? 'text-violet-300' : 'text-violet-700'}`}>
+            <Sparkles className="w-3 h-3" /> AI Reply Suggestions
+          </div>
+          {replySuggestions.map((reply, idx) => {
+            const replyKey = `${email.id}-${idx}`;
+            return (
+              <div
+                key={idx}
+                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                  copiedReply === replyKey
+                    ? darkMode ? 'bg-emerald-900/30 border-emerald-700/50' : 'bg-emerald-50 border-emerald-200'
+                    : darkMode ? 'bg-stone-800/50 border-stone-700 hover:bg-stone-800' : 'bg-stone-50 border-stone-200 hover:bg-stone-100'
+                }`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onCopyReply) onCopyReply(reply, replyKey);
+                }}
+                title="Click to copy"
+              >
+                <div className={`text-xs flex-1 ${darkMode ? 'text-stone-300' : 'text-stone-700'}`}>{reply}</div>
+                <Copy className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${
+                  copiedReply === replyKey
+                    ? 'text-emerald-500'
+                    : darkMode ? 'text-stone-500' : 'text-stone-400'
+                }`} />
+              </div>
+            );
+          })}
+          {copiedReply && copiedReply.startsWith(email.id) && (
+            <div className="text-xs text-emerald-500 font-medium">Copied to clipboard.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
