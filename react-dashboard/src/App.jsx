@@ -3,6 +3,37 @@ import InboxDashboard from './InboxDashboard';
 import AccountSelector from './AccountSelector';
 import ConfirmRemoveModal from './ConfirmRemoveModal';
 
+// ── JWT Token Helpers ─────────────────────────────────────────────────
+const TOKEN_KEY = 'inbox_intel_jwt';
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * Wrapper around fetch that injects the JWT Authorization header.
+ * Use this for all API calls to protected endpoints.
+ */
+export async function apiFetch(url, options = {}) {
+  const token = getToken();
+  const headers = {
+    ...options.headers,
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return fetch(url, { ...options, headers });
+}
+
+
 function App() {
   // accounts is now an array of { email, name, picture } objects
   const [accounts, setAccounts] = useState([]);
@@ -10,15 +41,20 @@ function App() {
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountToRemove, setAccountToRemove] = useState(null);
 
-  // Check URL params for auth callback
+  // Check URL params for auth callback (now includes JWT token)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authEmail = params.get('auth_email');
     const authError = params.get('auth_error');
+    const token = params.get('token');
 
     if (authEmail) {
       setSelectedAccount(authEmail);
       localStorage.setItem('inbox_intel_account', authEmail);
+      // Store JWT token if provided
+      if (token) {
+        setToken(token);
+      }
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -32,6 +68,7 @@ function App() {
   const loadAccounts = useCallback(async () => {
     setLoadingAccounts(true);
     try {
+      // /api/auth/accounts is public — no JWT needed
       const res = await fetch('/api/auth/accounts');
       if (res.ok) {
         const data = await res.json();
@@ -49,6 +86,20 @@ function App() {
             localStorage.setItem('inbox_intel_account', accountList[0].email);
           }
         }
+
+        // If we have an account but no JWT token, request one
+        const currentEmail = selectedAccount || (accountList.length > 0 ? accountList[0].email : null);
+        if (currentEmail && !getToken()) {
+          try {
+            const tokenRes = await fetch(`/api/auth/token?email=${encodeURIComponent(currentEmail)}`, { method: 'POST' });
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              setToken(tokenData.token);
+            }
+          } catch (err) {
+            console.warn('Could not fetch JWT token:', err);
+          }
+        }
       }
     } catch (err) {
       console.error('Failed to load accounts:', err);
@@ -61,9 +112,19 @@ function App() {
     loadAccounts();
   }, [loadAccounts]);
 
-  const handleSelectAccount = useCallback((email) => {
+  const handleSelectAccount = useCallback(async (email) => {
     setSelectedAccount(email);
     localStorage.setItem('inbox_intel_account', email);
+    // Get a new JWT for the selected account
+    try {
+      const tokenRes = await fetch(`/api/auth/token?email=${encodeURIComponent(email)}`, { method: 'POST' });
+      if (tokenRes.ok) {
+        const tokenData = await tokenRes.json();
+        setToken(tokenData.token);
+      }
+    } catch (err) {
+      console.warn('Could not refresh JWT token:', err);
+    }
   }, []);
 
   const handleLogin = useCallback(() => {
@@ -92,6 +153,7 @@ function App() {
           } else {
             setSelectedAccount(null);
             localStorage.removeItem('inbox_intel_account');
+            clearToken();
           }
         }
       }

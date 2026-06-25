@@ -117,7 +117,7 @@ hr_email_graph = build_hr_graph()
 
 # ── Dispatcher Functions ─────────────────────────────────────────────────────
 
-def classify_email(email: dict, mode: str = "standard", owner_email: str | None = None) -> dict:
+def classify_email(email: dict, mode: str = "standard", owner_email: str | None = None, model_name: str | None = None) -> dict:
     """
     Run a single email through the appropriate pipeline.
     email: dict from fetcher.py
@@ -146,6 +146,8 @@ def classify_email(email: dict, mode: str = "standard", owner_email: str | None 
         "hr_raw_response":     None,
         # Multi-account support
         "owner_email":         owner_email,
+        # Model selection
+        "model_name":          model_name,
     }
 
     if mode == "hr":
@@ -153,7 +155,7 @@ def classify_email(email: dict, mode: str = "standard", owner_email: str | None 
     return email_graph.invoke(initial_state)
 
 
-def classify_batch(emails: list[dict], mode: str = "standard", owner_email: str | None = None) -> list[dict]:
+def classify_batch(emails: list[dict], mode: str = "standard", owner_email: str | None = None, model_name: str | None = None) -> list[dict]:
     """
     Classify a batch of emails sequentially.
     Returns list of final states.
@@ -163,7 +165,7 @@ def classify_batch(emails: list[dict], mode: str = "standard", owner_email: str 
     mode_label = "HR" if mode == "hr" else "Standard"
     for i, email in enumerate(emails, 1):
         print(f"\n  [{i}/{total}] [{mode_label}] Classifying: {email['subject'][:60]}")
-        result = classify_email(email, mode=mode, owner_email=owner_email)
+        result = classify_email(email, mode=mode, owner_email=owner_email, model_name=model_name)
 
         if mode == "hr":
             if result.get("status") == "classified":

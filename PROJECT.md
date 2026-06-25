@@ -320,7 +320,7 @@ rich==13.7.1
 - [x] No input sanitization on email snippets → **Fixed:** `_sanitize_text()` strips HTML, zero-width chars, prompt injections
 - [x] No rate limiting on `/api/classify` → **Fixed:** 10-second cooldown, returns HTTP 429
 - [x] OAuth token stored as plain JSON → **Fixed:** Optional Fernet encryption via `TOKEN_ENCRYPTION_KEY`
-- [ ] No HTTPS in development (FastAPI runs on plain HTTP)
+- [x] No HTTPS in development (FastAPI runs on plain HTTP) → **Fixed:** Self-signed cert generation + optional TLS via uvicorn
 
 ---
 
@@ -346,9 +346,9 @@ rich==13.7.1
 - [ ] Support multiple email providers (Outlook, IMAP)
 - [x] Add user accounts & multi-tenancy → **Done:** Multi-account Google OAuth login
 - [ ] Deploy to cloud (Docker containerization)
-- [ ] Add model switching (support multiple Ollama models)
+- [x] Add model switching (support multiple Ollama models) → **Done:** `/api/models` endpoint + UI dropdown + `--model` CLI flag
 - [ ] Add custom classification rules (user-defined labels)
-- [ ] Add email auto-reply suggestions using LLM
+- [x] Add email auto-reply suggestions using LLM → **Done:** `/api/emails/{id}/reply-suggestions` endpoint + "Suggest Replies" button on email cards
 - [ ] Add analytics: email volume trends, response time tracking
 - [ ] Mobile-responsive React dashboard optimization
 
@@ -356,5 +356,5 @@ rich==13.7.1
 - [x] Add Redis/caching layer for stats → **Done:** In-memory TTL cache (no Redis needed)
 - [ ] Add background job queue (Celery/RQ) for classification
 - [ ] Add database migrations (Alembic)
-- [ ] Add API authentication (JWT tokens)
-- [ ] Add request logging middleware
+- [x] Add API authentication (JWT tokens) → **Done:** PyJWT-based auth with `get_current_user` dependency on all protected routes
+- [x] Add request logging middleware → **Done:** Custom `RequestLoggingMiddleware` with Loguru, logs method/path/status/timing

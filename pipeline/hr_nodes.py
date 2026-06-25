@@ -137,10 +137,11 @@ def hr_classify_node(state: dict) -> dict:
     """
     retry_count = state.get("retry_count", 0)
     kw_result = state.get("_kw_result", {"category": "HR_ADMIN", "confidence": 0.0, "matched_keywords": []})
+    model = state.get("model_name") or OLLAMA_MODEL
 
     try:
         response = ollama_client.chat(
-            model=OLLAMA_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": HR_CLASSIFICATION_SYSTEM_PROMPT},
                 {"role": "user",   "content": state["hr_prompt"]},

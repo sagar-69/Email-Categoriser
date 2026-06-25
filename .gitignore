@@ -1,5 +1,5 @@
 .env
-~/.inbox-intel/
+.inbox-intel/
 __pycache__/
 *.pyc
 .DS_Store

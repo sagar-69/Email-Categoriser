@@ -66,10 +66,11 @@ def classify_node(state: EmailState) -> dict:
     On failure: increments retry_count; if retries exhausted, sets status="failed"
     """
     retry_count = state.get("retry_count", 0)
+    model = state.get("model_name") or OLLAMA_MODEL
 
     try:
         response = ollama_client.chat(
-            model=OLLAMA_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": CLASSIFICATION_SYSTEM_PROMPT},
                 {"role": "user",   "content": state["prompt"]},

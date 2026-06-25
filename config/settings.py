@@ -26,6 +26,16 @@ MAX_EMAILS_PER_RUN = int(os.getenv("MAX_EMAILS_PER_RUN", "200"))
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "")
 
+# ── JWT Authentication ──────────────────────────────────────────────────────
+import secrets
+JWT_SECRET_KEY  = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+JWT_ALGORITHM   = os.getenv("JWT_ALGORITHM", "HS256")
+JWT_EXPIRY_MINUTES = int(os.getenv("JWT_EXPIRY_MINUTES", "1440"))  # 24 hours
+
+# ── SSL / HTTPS (optional) ──────────────────────────────────────────────────
+SSL_KEYFILE  = os.getenv("SSL_KEYFILE", "")
+SSL_CERTFILE = os.getenv("SSL_CERTFILE", "")
+
 # ── Classification Enums ─────────────────────────────────────────────────────
 class EmailTypeLabel(str, Enum):
     SALES      = "SALES"

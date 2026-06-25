@@ -131,19 +131,19 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 <tr>
 <td width="50%">
 
-### ⚡ LangGraph Orchestration
+### ⚡ LangGraph Orchestration & Backend
 - State-graph pipeline: `parse_node → classify_node → store_node`
 - **Conditional retry edge** loops back on `status == "pending"`
-- Full **TypedDict state** with input, intermediate, and output fields
-- Built-in **observability** and structured logging via Loguru
+- Built-in **observability** with custom `RequestLoggingMiddleware` (Loguru)
+- **Model Switching**: Dynamic model injection into the pipeline (`phi3:mini`, `llama3`, etc.)
 
 </td>
 <td width="50%">
 
 ### 🛠️ Developer-Friendly CLI & API
-- `python scripts/run.py --fetch-only` for headless/cron usage
+- **Auto-Reply AI**: Generate draft replies via `/api/emails/{id}/reply-suggestions`
+- **JWT Authentication**: Pure-Python HS256 tokens securing all data endpoints
 - Auto-generated **OpenAPI docs** at `localhost:8000/docs`
-- **Rich terminal output** with progress tables and summaries
 - Dual dashboards: React (modern) + Streamlit (debug/legacy)
 
 </td>
@@ -600,13 +600,17 @@ All endpoints are served by **FastAPI** on `http://localhost:8000`. Interactive 
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/emails` | Fetch all classified emails as JSON array |
-| `GET` | `/api/emails?mode=hr` | Fetch HR-mode classified emails |
-| `GET` | `/api/stats` | Get aggregated label counts for charts |
-| `GET` | `/api/unread-count` | Get unread email count `{total, standard, hr}` |
-| `GET` | `/api/health` | Health check — returns `{"status": "ok"}` |
-| `POST` | `/api/classify` | Trigger a fresh Gmail fetch + classification run |
-| `PATCH` | `/api/emails/{id}/read` | Mark a specific email as read |
+| `GET` | `/api/emails` | Fetch all classified emails as JSON array (Requires JWT) |
+| `GET` | `/api/emails?mode=hr` | Fetch HR-mode classified emails (Requires JWT) |
+| `GET` | `/api/stats` | Get aggregated label counts for charts (Requires JWT) |
+| `GET` | `/api/unread-count` | Get unread email count `{total, standard, hr}` (Requires JWT) |
+| `GET` | `/api/models` | List all available Ollama models for switching (Requires JWT) |
+| `GET` | `/api/health` | Health check — returns `{"status": "ok"}` (Public) |
+| `GET` | `/api/auth/login` | Redirect to Google OAuth2 consent screen (Public) |
+| `POST` | `/api/auth/token` | Issue JWT token for authenticated users (Public) |
+| `POST` | `/api/classify` | Trigger a fresh Gmail fetch + classification run (Requires JWT) |
+| `POST` | `/api/emails/{id}/reply-suggestions` | Generate AI reply suggestions (Requires JWT) |
+| `PATCH` | `/api/emails/{id}/read` | Mark a specific email as read (Requires JWT) |
 
 ### Request & Response Examples
 
@@ -761,7 +765,8 @@ SELECT COUNT(*) FROM emails WHERE is_read = 0;
 | **Local AI Inference** | Ollama on `localhost:11434` | Email content is NEVER sent to any external API |
 | **Secure Credential Storage** | `~/.inbox-intel/` (outside repo) | OAuth tokens and credentials are gitignored |
 | **Token Auto-Refresh** | `google-auth-oauthlib` | Refresh tokens are handled automatically |
-| **No Hardcoded Secrets** | `python-dotenv` + `.env.example` | All secrets live in `.env`, which is gitignored |
+| **JWT Authentication** | Pure-Python HS256 JWT | All frontend-to-backend API calls require Bearer tokens |
+| **HTTPS Support** | `generate_certs.sh` | Optional TLS for secure local development |
 | **Local Database** | SQLite at `~/.inbox-intel/emails.db` | No cloud database; all data stays on device |
 | **CORS Control** | FastAPI CORS middleware | Only `localhost:5173` is whitelisted by default |
 

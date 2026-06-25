@@ -24,7 +24,7 @@ from pipeline.graph import classify_batch
 console = Console()
 
 
-def run_classification(mode: str = "standard", reclassify_all: bool = False, owner_email: str | None = None):
+def run_classification(mode: str = "standard", reclassify_all: bool = False, owner_email: str | None = None, model_name: str | None = None):
     mode_label = "HR" if mode == "hr" else "Standard"
     account_label = f" [{owner_email}]" if owner_email else ""
     console.rule(f"[bold]Step 1: Fetching unread emails from Gmail ({mode_label} mode){account_label}")
@@ -56,7 +56,7 @@ def run_classification(mode: str = "standard", reclassify_all: bool = False, own
         return
 
     console.rule(f"[bold]Step 2: Classifying via LangGraph + Ollama ({mode_label})")
-    results = classify_batch(new_emails, mode=mode, owner_email=owner_email)
+    results = classify_batch(new_emails, mode=mode, owner_email=owner_email, model_name=model_name)
 
     # Summary table
     classified = sum(1 for r in results if r.get("status") == "classified")
@@ -95,11 +95,13 @@ if __name__ == "__main__":
                         help="Re-classify all emails, not just new ones")
     parser.add_argument("--owner-email", type=str, default=None,
                         help="Email address of the Google account to use")
+    parser.add_argument("--model", type=str, default=None,
+                        help="Ollama model to use for classification (overrides OLLAMA_MODEL)")
     args = parser.parse_args()
 
     init_db()
 
     if not args.dash_only:
-        run_classification(mode=args.mode, reclassify_all=args.reclassify_all, owner_email=args.owner_email)
+        run_classification(mode=args.mode, reclassify_all=args.reclassify_all, owner_email=args.owner_email, model_name=args.model)
     if not args.fetch_only:
         launch_dashboard()

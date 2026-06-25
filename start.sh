@@ -8,13 +8,27 @@ echo "Starting Ollama..."
 ollama serve &
 OLLAMA_PID=$!
 
-# 2. Start FastAPI Server
+# 2. Determine SSL flags by reading .env (not by checking cert files)
+SSL_FLAGS=""
+if [ -f ".env" ]; then
+    SSL_KEY=$(grep -E '^SSL_KEYFILE=' .env 2>/dev/null | cut -d'=' -f2-)
+    SSL_CERT=$(grep -E '^SSL_CERTFILE=' .env 2>/dev/null | cut -d'=' -f2-)
+fi
+
+if [ -n "$SSL_KEY" ] && [ -n "$SSL_CERT" ] && [ -f "$SSL_KEY" ] && [ -f "$SSL_CERT" ]; then
+    echo "🔒 SSL enabled via .env — starting FastAPI with HTTPS"
+    SSL_FLAGS="--ssl-keyfile $SSL_KEY --ssl-certfile $SSL_CERT"
+else
+    echo "🔓 Running FastAPI with HTTP (to enable HTTPS, uncomment SSL lines in .env)"
+fi
+
+# 3. Start FastAPI Server
 echo "Starting FastAPI Server..."
 source venv/bin/activate
-uvicorn api.server:app --port 8000 &
+uvicorn api.server:app --port 8000 $SSL_FLAGS &
 FASTAPI_PID=$!
 
-# 3. Start React Dashboard
+# 4. Start React Dashboard
 echo "Starting React Dashboard..."
 cd react-dashboard
 npm run dev &
@@ -22,7 +36,11 @@ REACT_PID=$!
 cd ..
 
 echo "All services are starting up!"
-echo "👉 Open your browser to: http://localhost:5173"
+if [ -n "$SSL_FLAGS" ]; then
+    echo "👉 Open your browser to: https://localhost:5173"
+else
+    echo "👉 Open your browser to: http://localhost:5173"
+fi
 echo "Press Ctrl+C to gracefully stop all services."
 
 # Trap SIGINT and SIGTERM to kill background processes

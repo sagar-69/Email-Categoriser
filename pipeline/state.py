@@ -46,3 +46,6 @@ class EmailState(TypedDict):
     # ── Multi-account fields ──────────────────────────────────────────────────
     owner_email:          Optional[str]      # Google account email that fetched this email
 
+    # ── Model selection ──────────────────────────────────────────────────────
+    model_name:           Optional[str]      # Override Ollama model for this classification
+
