@@ -166,23 +166,71 @@
 - **Rationale**: Users requested more robust export formats beyond CSV.
 - **Impact**: Data can now be exported in heavily formatted tables ready for business reports.
 
+#### [📦] Dependency — Add Testing Framework
+- **Date**: 2026-06-26
+- **Added**: `pytest` to `requirements.txt`
+- **Rationale**: Ensure reliability of backend nodes, fetcher, and store.
+- **Impact**: Enables unit testing. Tests added for all major components.
+
+#### [✅] Added — Pagination for `/api/emails`
+- **Date**: 2026-06-26
+- **Change**: Added offset-based pagination to API.
+- **Rationale**: Prevent loading entire DB into memory.
+- **Impact**: Supports thousands of emails without memory issues.
+
+#### [✅] Added — User Accounts & Multi-Tenancy
+- **Date**: 2026-06-26
+- **Change**: Added JWT authentication, Google OAuth login, and `get_current_user` dependency.
+- **Rationale**: Currently single-user; needed account isolation.
+- **Impact**: Multiple users can securely authenticate on one instance.
+
+#### [✅] Added — Model Switching
+- **Date**: 2026-06-26
+- **Change**: Added `/api/models` endpoint, UI dropdown, and `--model` CLI flag.
+- **Rationale**: Enable users to swap between available Ollama models.
+- **Impact**: Made visible in both Standard and HR dashboards with proper loading/error states.
+
+#### [✅] Added — AI Auto-Reply Suggestions
+- **Date**: 2026-06-26
+- **Change**: Added `/api/emails/{id}/reply-suggestions` endpoint and "Suggest Replies" button.
+- **Rationale**: Let AI draft responses directly within the app.
+- **Impact**: Works on both Standard and HR email cards. Users can instantly copy AI-generated replies.
+
+#### [🔧] Fixed — Vite Proxy Protocol Mismatch
+- **Date**: 2026-06-26
+- **Change**: Updated `react-dashboard/vite.config.js` to prevent accidental TLS traffic against plain HTTP FastAPI server.
+- **Rationale**: Caused `wrong version number` errors if local cert files existed.
+- **Impact**: Proxies to HTTP unless SSL is explicitly enabled via `.env`.
+
+#### [🔧] Fixed — Refresh Button Error Visibility
+- **Date**: 2026-06-26
+- **Change**: Updated dashboard refresh flow so classification errors remain visible after automatic SQLite reload.
+- **Rationale**: Refresh failures were hidden by follow-up data reload.
+- **Impact**: Users see actionable refresh failures in both modes.
+
+#### [🔧] Fixed — `/api/classify` Error Semantics
+- **Date**: 2026-06-26
+- **Change**: Replaced success-shaped error payloads with proper HTTP errors.
+- **Rationale**: Frontend needs accurate HTTP status to tell successful refreshes from failed classifications.
+- **Impact**: Invalid mode returns HTTP 400; runtime classification errors return HTTP 500.
+
+#### [✅] Added — Account-Aware API Retry
+- **Date**: 2026-06-26
+- **Change**: Added frontend helper that retries protected API calls once after refreshing JWT.
+- **Rationale**: Handled token expiration gracefully.
+- **Impact**: Email loading, unread counts, and model listing are more reliable.
+
+#### [✅] Added — HR Dashboard Sorting Controls
+- **Date**: 2026-06-26
+- **Change**: Added HR sort options: **Urgent First**, **Most Recent First**, and **Action Required First**.
+- **Rationale**: HR mode needed the same triage ergonomics as Standard view.
+- **Impact**: Users can reorder filtered HR email list directly.
+
 ---
 
 ## Pending / Planned Changes
 
-### Short Term (Next 2 Weeks)
-
-#### [📦] Dependency — Add Testing Framework
-- **Planned**: Add `pytest` to `requirements.txt`
-- **Rationale**: `tests/` folder exists but is empty
-- **Impact**: Enables unit testing for nodes, fetcher, and store
-
-### Medium Term (Next 1-2 Months)
-
-#### [✅] Added — Pagination for `/api/emails`
-- **Planned**: Add cursor-based or offset pagination
-- **Rationale**: Currently loads entire DB into memory; will break at scale
-- **Impact**: Supports thousands of emails without memory issues
+### Short Term
 
 #### [✅] Added — WebSocket Real-Time Updates
 - **Planned**: Add WebSocket endpoint for live email notifications
@@ -194,47 +242,34 @@
 - **Rationale**: Conversations are currently shown as individual emails
 - **Impact**: Better UX for email threads and long conversations
 
-#### [🏗️] Architecture — Background Job Queue
-- **Planned**: Add Celery or RQ for asynchronous classification
-- **Rationale**: Classification blocks the API during `POST /api/classify`
-- **Impact**: Non-blocking API; classification runs in background
-
-#### [🏗️] Architecture — Caching Layer
-- **Planned**: Add Redis or in-memory caching for `/api/stats`
-- **Rationale**: Stats are recomputed on every request; no data changes between classifications
-- **Impact**: Faster dashboard load times
-
-### Long Term (3-6 Months)
+### Medium Term
 
 #### [🏗️] Architecture — Multi-Email Provider Support
 - **Planned**: Abstract `data/fetcher.py` to support Outlook, IMAP, Exchange
 - **Rationale**: Currently Gmail-only; limits user base
 - **Impact**: Broader adoption; plugin-based fetcher architecture
 
-#### [🏗️] Architecture — Docker Containerization
-- **Planned**: Create `Dockerfile` and `docker-compose.yml`
-- **Rationale**: Easier deployment; consistent environment across machines
-- **Impact**: One-command deployment anywhere
+#### [✅] Added — Custom Classification Rules
+- **Planned**: Allow users to define their own labels and rules
+- **Rationale**: Current labels are hardcoded; not all users have the same needs
+- **Impact**: Personalization; power-user feature
 
-#### [✅] Added — User Accounts & Multi-Tenancy
-- **Planned**: Add JWT authentication, user table, per-user email DBs
-- **Rationale**: Currently single-user; no concept of accounts
-- **Impact**: SaaS potential; multiple users on one instance
+### Long Term
+
+#### [🏗️] Architecture — Background Job Queue
+- **Planned**: Add Celery or RQ for asynchronous classification
+- **Rationale**: Classification blocks the API during `POST /api/classify`
+- **Impact**: Non-blocking API; classification runs in background
 
 #### [🏗️] Architecture — Database Migrations
 - **Planned**: Add Alembic for schema versioning
 - **Rationale**: SQLite schema is currently hardcoded; changes are risky
 - **Impact**: Safe schema evolution as features grow
 
-#### [✅] Added — Custom Classification Rules
-- **Planned**: Allow users to define their own labels and rules
-- **Rationale**: Current labels are hardcoded; not all users have the same needs
-- **Impact**: Personalization; power-user feature
-
-#### [🔧] Refactored — AI Service Abstraction
-- **Planned**: Create `pipeline/llm_providers/` with adapters for Ollama, OpenAI, Anthropic
-- **Rationale**: Currently Ollama-only; users may want cloud models for better accuracy
-- **Impact**: Swappable LLM backend; config-driven provider selection
+#### [🏗️] Architecture — Docker Containerization
+- **Planned**: Create `Dockerfile` and `docker-compose.yml`
+- **Rationale**: Easier deployment; consistent environment across machines
+- **Impact**: One-command deployment anywhere
 
 ---
 
@@ -263,74 +298,20 @@
 | 2026-06-04 | ✅ | HR classification pipeline and React dashboard mode modal |
 | 2026-06-12 | ❌ | Removed Streamlit legacy dashboard |
 | 2026-06-12 | ✅ | Excel and PDF export functionality for React dashboard |
-| TBD | 📦 | Add pytest testing framework |
-| TBD | ✅ | API pagination |
+| 2026-06-26 | 📦 | Added pytest testing framework |
+| 2026-06-26 | ✅ | API pagination |
+| 2026-06-26 | ✅ | User accounts & JWT auth |
+| 2026-06-26 | ✅ | AI Auto-Reply Suggestions |
+| 2026-06-26 | ✅ | Model Switching / Selector |
+| 2026-06-26 | 🔧 | Vite Proxy Protocol Mismatch fix |
+| 2026-06-26 | 🔧 | Refresh Button Error Visibility fix |
+| 2026-06-26 | 🔧 | `/api/classify` Error Semantics fix |
+| 2026-06-26 | ✅ | Account-Aware API Retry logic |
+| 2026-06-26 | ✅ | HR Dashboard Sorting Controls |
 | TBD | ✅ | WebSocket real-time updates |
 | TBD | ✅ | Email threading view |
 | TBD | 🏗️ | Background job queue (Celery/RQ) |
-| TBD | 🏗️ | Caching layer (Redis) |
 | TBD | 🏗️ | Multi-provider fetcher abstraction |
 | TBD | 🏗️ | Docker containerization |
-| TBD | ✅ | User accounts & JWT auth |
 | TBD | 🏗️ | Database migrations (Alembic) |
 | TBD | ✅ | Custom classification rules |
-| TBD | 🔧 | LLM provider abstraction (Ollama/OpenAI/Anthropic) |
-
----
-
-## Addendum — June 26, 2026
-
-#### [🔧] Fixed — Vite Proxy Protocol Mismatch
-- **Date**: 2026-06-26
-- **Change**: Updated `react-dashboard/vite.config.js` so the API proxy no longer switches to HTTPS merely because local certificate files exist.
-- **Rationale**: Vite was attempting TLS traffic against a plain HTTP FastAPI server, causing `wrong version number` / `Invalid HTTP request received` errors.
-- **Impact**: `/api/*` requests now proxy to HTTP unless SSL is explicitly enabled through `.env` with valid `SSL_KEYFILE` and `SSL_CERTFILE`.
-
-#### [🔧] Fixed — Refresh Button Error Visibility
-- **Date**: 2026-06-26
-- **Change**: Updated the dashboard refresh flow so classification errors remain visible after the automatic SQLite reload.
-- **Rationale**: Refresh failures could be hidden because the follow-up data reload cleared the error state.
-- **Impact**: Users now see actionable refresh failures in both Standard and HR modes while existing data remains visible.
-
-#### [🔧] Fixed — `/api/classify` Error Semantics
-- **Date**: 2026-06-26
-- **Change**: Added mode validation and replaced success-shaped error payloads with proper HTTP errors.
-- **Rationale**: The frontend needs accurate HTTP status handling to tell successful refreshes from failed classifications.
-- **Impact**: Invalid mode returns HTTP 400; runtime classification errors return HTTP 500.
-
-#### [✅] Added — Account-Aware API Retry
-- **Date**: 2026-06-26
-- **Change**: Added a frontend helper that retries protected API calls once after refreshing the JWT for the selected Google account.
-- **Rationale**: Protected endpoints could fail if the dashboard loaded before a usable JWT was available or after a token expired.
-- **Impact**: Email loading, unread counts, model listing, read marking, refresh, and reply suggestions are more reliable.
-
-#### [✅] Added — Model Switcher in HR Mode
-- **Date**: 2026-06-26
-- **Change**: Added the Ollama model switcher to the HR dashboard header and made model loading/error states visible.
-- **Rationale**: The selector previously existed only in Standard mode and could disappear when `/api/models` failed.
-- **Impact**: Users can choose the active Ollama model before refreshing either Standard or HR classifications.
-
-#### [✅] Added — AI Auto-Reply Suggestions in HR Mode
-- **Date**: 2026-06-26
-- **Change**: Extended `HRDashboard` and `HREmailCard` to support the existing AI reply suggestion workflow.
-- **Rationale**: HR-classified emails should have the same local reply drafting capability as Standard emails.
-- **Impact**: HR email cards now show a "Suggest Replies" button, generated reply suggestions, and copy-to-clipboard behavior.
-
-#### [✅] Added — HR Dashboard Sorting Controls
-- **Date**: 2026-06-26
-- **Change**: Added HR sort options: **Urgent First**, **Most Recent First**, and **Action Required First**.
-- **Rationale**: HR mode needed the same triage ergonomics as the Standard inbox view.
-- **Impact**: Users can reorder the filtered HR email list without changing category filters or search.
-
-#### [✅] Added — HR Excel and PDF Export
-- **Date**: 2026-06-26
-- **Change**: Added HR export options for Excel (`.xlsx`) and PDF (`.pdf`) alongside the existing CSV export.
-- **Rationale**: HR mode needed business-report-ready export formats, matching the Standard dashboard.
-- **Impact**: HR exports now use the currently filtered and sorted HR email list.
-
-#### [✅] Verified — Regression Checks
-- **Date**: 2026-06-26
-- **Checks**:
-  - `npm run build` passed for the React dashboard.
-  - `python3 -m pytest -q` passed with `68 passed`.
-- **Impact**: Existing backend tests and frontend build remain healthy after the dashboard/API updates.

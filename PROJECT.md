@@ -76,6 +76,9 @@
 | `GET` | `/api/unread-count` | Returns count of unread emails |
 | `PATCH` | `/api/emails/{email_id}/read` | Marks an email as read |
 | `POST` | `/api/classify` | Triggers full pipeline (fetch + classify new emails) |
+| `POST` | `/api/auth/token` | Google OAuth2 token exchange / refresh |
+| `GET` | `/api/emails/{id}/reply-suggestions` | Generates AI auto-reply suggestions |
+| `GET` | `/api/models` | Lists available Ollama models |
 
 ### Gmail API Endpoints (via `googleapiclient`)
 
@@ -277,6 +280,10 @@ rich==13.7.1
 - [x] `/api/stats` — aggregated counts
 - [x] `/api/health` — health check
 - [x] `/api/classify` — trigger classification pipeline
+- [x] `/api/emails/{id}/reply-suggestions` — AI auto-reply suggestions
+- [x] `/api/models` — model switching (support multiple Ollama models)
+- [x] `/api/auth/token` — API authentication (JWT tokens)
+- [x] Custom `RequestLoggingMiddleware` with Loguru
 
 ### Dashboards
 - [x] **React Dashboard** (modern):
@@ -287,112 +294,46 @@ rich==13.7.1
   - [x] 1 pie chart (Email Type Distribution)
   - [x] 1 stacked timeline bar (Emails by Day)
   - [x] Email list with color-coded tags
-  - [x] Sort by Priority / Recent / Action Required
+  - [x] Sort by Priority / Recent / Action Required (for both Standard and HR)
   - [x] Sidebar multi-select filters (all 4 dimensions)
-  - [x] CSV export
-  - [x] Refresh button (triggers re-classification)
+  - [x] CSV, Excel (.xlsx), and PDF export functionality
+  - [x] Refresh button (triggers re-classification) with error state persistence
+  - [x] Email body preview on React email cards
+  - [x] Search functionality (by subject, sender, or reason)
+  - [x] Notification badges for urgent emails
+  - [x] Account-aware API retry logic for JWT token refresh
 
-### DevOps / Tooling
+### DevOps / Tooling / Performance / Security
 - [x] `scripts/setup.sh` — automated environment setup
-- [x] `start.sh` — one-command multi-service launcher (macOS AppleScript)
+- [x] `start.sh`, `start-linux.sh`, `start-windows.bat` — multi-service launchers
 - [x] `scripts/run.py` — CLI with `--fetch-only` and `--dash-only` flags
-- [x] `.env` configuration support
-- [x] Structured logging with Loguru
-- [x] Rich CLI output with progress tables
+- [x] `.env` configuration support and `.env.example` template
+- [x] Removed `venv/` from Git and added to `.gitignore`
+- [x] Unit tests (`tests/`) implemented for all major components
+- [x] SQLite `PRAGMA journal_mode=WAL` enabled for concurrency
+- [x] Pagination for `/api/emails` (offset-based)
+- [x] Batching for Gmail API calls (`BatchHttpRequest`)
+- [x] In-memory TTL cache for stats endpoints
+- [x] Self-signed cert generation + optional TLS via uvicorn (HTTPS in development)
+- [x] Rate limiting on `/api/classify` (10-second cooldown)
+- [x] Optional Fernet encryption for OAuth tokens
 
 ---
 
-## 8. Pending Issues
-
-### Known Bugs
-- [x] `venv/` directory is committed to Git (should be in `.gitignore`)
-- [x] `start.sh` is macOS-only (AppleScript); no Linux/Windows equivalent
-- [x] No graceful shutdown for Ollama/FastAPI when `start.sh` exits
-- [x] Error handling in React dashboard is minimal (no retry on API failure)
-
-### Performance
-- [x] No batching for Gmail API calls → **Fixed:** Uses `BatchHttpRequest` (up to 100/batch)
-- [x] No pagination for `/api/emails` → **Fixed:** Added `limit` & `offset` params + `count_all()`
-- [x] SQLite is single-writer → **Fixed:** `PRAGMA journal_mode=WAL` enabled
-- [x] No caching layer for stats → **Fixed:** 30-second TTL in-memory cache with auto-invalidation
-
-### Security
-- [x] No input sanitization on email snippets → **Fixed:** `_sanitize_text()` strips HTML, zero-width chars, prompt injections
-- [x] No rate limiting on `/api/classify` → **Fixed:** 10-second cooldown, returns HTTP 429
-- [x] OAuth token stored as plain JSON → **Fixed:** Optional Fernet encryption via `TOKEN_ENCRYPTION_KEY`
-- [x] No HTTPS in development (FastAPI runs on plain HTTP) → **Fixed:** Self-signed cert generation + optional TLS via uvicorn
-
----
-
-## 9. Pending Tasks / Roadmap
+## 8. Pending Tasks / Roadmap
 
 ### Short Term
-- [x] Add `tests/` unit tests → **Done:** `test_store.py`, `test_hr_keywords.py`, `test_graph.py`, `test_pipeline.py`, `test_fetcher.py`, `conftest.py`
-- [x] Add `.env.example` to repo (referenced in README but missing)
-- [x] Remove `venv/` from Git and add to `.gitignore`
-- [x] Add Linux/Windows startup scripts (cross-platform `start.sh`)
-- [x] Add email body preview to React email cards
-- [x] Add search functionality (by subject, sender, or reason)
-
-### Medium Term
-- [x] Add pagination to `/api/emails` → **Done:** offset-based with `limit`/`offset` params
 - [ ] Add WebSocket support for real-time updates when new emails arrive
 - [ ] Add email threading view (group by `thread_id`)
+
+### Medium Term
+- [ ] Support multiple email providers (Outlook, IMAP)
 - [ ] Add user preferences (default filters, sort order)
-- [x] Add export to PDF/Excel (not just CSV) → **Done:** Implemented using xlsx and jspdf
-- [x] Add notification badges for urgent emails
+- [ ] Add custom classification rules (user-defined labels)
 
 ### Long Term
-- [ ] Support multiple email providers (Outlook, IMAP)
-- [x] Add user accounts & multi-tenancy → **Done:** Multi-account Google OAuth login
 - [ ] Deploy to cloud (Docker containerization)
-- [x] Add model switching (support multiple Ollama models) → **Done:** `/api/models` endpoint + UI dropdown + `--model` CLI flag
-- [ ] Add custom classification rules (user-defined labels)
-- [x] Add email auto-reply suggestions using LLM → **Done:** `/api/emails/{id}/reply-suggestions` endpoint + "Suggest Replies" button on email cards
 - [ ] Add analytics: email volume trends, response time tracking
 - [ ] Mobile-responsive React dashboard optimization
-
-### Architecture Improvements
-- [x] Add Redis/caching layer for stats → **Done:** In-memory TTL cache (no Redis needed)
 - [ ] Add background job queue (Celery/RQ) for classification
 - [ ] Add database migrations (Alembic)
-- [x] Add API authentication (JWT tokens) → **Done:** PyJWT-based auth with `get_current_user` dependency on all protected routes
-- [x] Add request logging middleware → **Done:** Custom `RequestLoggingMiddleware` with Loguru, logs method/path/status/timing
-
----
-
-## 10. June 26, 2026 Implementation Notes
-
-The following fixes and feature additions were completed without removing existing functionality and without modifying `README.md`.
-
-### Refresh Button Reliability
-- [x] Fixed a dashboard refresh issue where classification failures could be hidden after the automatic data reload.
-- [x] `handleRefresh()` now preserves refresh errors when the follow-up SQLite reload completes.
-- [x] HR mode now shows a visible error banner instead of silently keeping the same data.
-- [x] The full-screen connection error only appears when both Standard and HR datasets are empty, so existing HR results are not hidden by a refresh failure.
-- [x] `/api/classify` now validates the requested classification mode and returns proper HTTP errors for invalid modes or pipeline failures.
-
-### HR Classification Dashboard Enhancements
-- [x] Added HR email sorting controls:
-  - [x] **Urgent First**
-  - [x] **Most Recent First**
-  - [x] **Action Required First**
-- [x] HR sorting uses existing email fields (`priority_label`, `received_at`, `action_label`) and keeps the current search/category filters intact.
-- [x] Added HR export options:
-  - [x] Existing CSV export preserved
-  - [x] Excel export via `xlsx`
-  - [x] PDF export via `jspdf` + `jspdf-autotable`
-- [x] HR exports operate on the currently filtered and sorted HR email list.
-
-### Earlier June 26 Dashboard/API Fixes
-- [x] Fixed Vite proxy protocol detection so existing local certificate files no longer force HTTPS when FastAPI is running over HTTP.
-- [x] Added account-aware JWT retry logic for protected dashboard requests.
-- [x] Made the Ollama model switcher visible in both Standard and HR dashboards.
-- [x] Added model loading/error states so the selector does not disappear if `/api/models` fails.
-- [x] Added AI Auto-Reply Suggestions to HR email cards, matching the existing Standard dashboard behavior.
-- [x] Kept the Standard dashboard CSV/Excel/PDF export behavior unchanged.
-
-### Verification
-- [x] Frontend production build passed with `npm run build`.
-- [x] Backend/unit test suite passed with `python3 -m pytest -q` (`68 passed`).
-- [x] Existing large-bundle Vite warning remains informational and unrelated to these changes.
