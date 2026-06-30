@@ -8,8 +8,8 @@
 ██║████╗  ██║██╔══██╗██╔═══██╗╚██╗██╔╝    ██║████╗  ██║╚══██╔══╝██╔════╝██║
 ██║██╔██╗ ██║██████╔╝██║   ██║ ╚███╔╝     ██║██╔██╗ ██║   ██║   █████╗  ██║
 ██║██║╚██╗██║██╔══██╗██║   ██║ ██╔██╗     ██║██║╚██╗██║   ██║   ██╔══╝  ██║
-     ██║██║ ╚████║██████╔╝╚██████╔╝██╔╝ ██╗    ██║██║ ╚████║   ██║   ███████╗███████╗
-     ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝
+██║██║ ╚████║██████╔╝╚██████╔╝██╔╝ ██╗    ██║██║ ╚████║   ██║   ███████╗███████╗
+╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚══════╝╚══════╝
 ```
 
 ### 🧠✉️ **Privacy-First, Local AI Email Intelligence**
@@ -27,11 +27,11 @@
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Last Updated](https://img.shields.io/badge/Updated-June_2026-brightgreen?style=for-the-badge)](https://github.com/sagar-69/Email-Categoriser)
+[![Last Updated](https://img.shields.io/badge/Updated-July_2026-brightgreen?style=for-the-badge)](https://github.com/sagar-69/Email-Categoriser)
 
 <br/>
 
-[🚀 Quick Start](#-quick-start) • [✨ Features](#-key-features) • [🏗️ Architecture](#️-system-architecture) • [📡 API Docs](#-api-documentation) • [🗺️ Roadmap](#️-roadmap) • [🤝 Contributing](#-contributing)
+[🚀 Quick Start](#-quick-start) • [✨ Features](#-key-features) • [🏗️ Architecture](#️-system-architecture) • [📡 API Docs](#-api-documentation) • [📸 Screenshots](#-screenshots--gallery) • [🗺️ Roadmap](#️-roadmap) • [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -43,11 +43,11 @@
 
 | Dashboard (Dark Mode) | Dashboard (Light Mode) |
 |:---:|:---:|
-| ![Dark Dashboard](screenshots/dark%20dashboard.png) | ![Light Dashboard](screenshots/light%20dashboard.png) |
+| ![Dark Dashboard](screenshots/screenshot_2026-06-26_at_3.30.53_pm.png) | ![Light Dashboard](screenshots/screenshot_2026-06-26_at_3.31.05_pm.png) |
 
 | Email Classification View | HR Mode Analytics |
 |:---:|:---:|
-| ![Email List](screenshots/email%20list.png) | ![HR Mode](screenshots/hr%20dashboard.png) |
+| ![Email List](screenshots/screenshot_2026-06-26_at_3.32.32_pm.png) | ![HR Mode](screenshots/screenshot_2026-06-26_at_3.33.59_pm.png) |
 
 </div>
 
@@ -73,7 +73,7 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 | 🤖 **Intelligent Classification** | LangGraph + local LLM across 4 label dimensions simultaneously |
 | 📊 **Actionable Insights** | Interactive React dashboard with 6 charts, 6 metric cards, multi-filter |
 | 🏢 **Domain-Specific Modes** | HR Classification mode with keyword consensus engine |
-| ⚡ **Developer-Friendly** | FastAPI backend, CLI runner, Rich terminal output, Streamlit fallback |
+| ⚡ **Developer-Friendly** | FastAPI backend, CLI runner, Rich terminal output, JWT auth |
 
 ### Who Is This For?
 
@@ -124,7 +124,7 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 - **6 live metric cards** (Total, Spam, Urgent, Action Required, Awaiting Reply, Failed)
 - **6 interactive charts** — bar charts, pie chart, stacked timeline
 - **Multi-select sidebar filters** across all 4 label dimensions
-- **Real-time search**, CSV export, and one-click re-classification
+- **Real-time search**, CSV/Excel/PDF export, and one-click re-classification
 
 </td>
 </tr>
@@ -135,7 +135,7 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 - State-graph pipeline: `parse_node → classify_node → store_node`
 - **Conditional retry edge** loops back on `status == "pending"`
 - Built-in **observability** with custom `RequestLoggingMiddleware` (Loguru)
-- **Model Switching**: Dynamic model injection into the pipeline (`phi3:mini`, `llama3`, etc.)
+- **Model Switching**: Dynamic model selection via `/api/models` endpoint
 
 </td>
 <td width="50%">
@@ -143,8 +143,8 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 ### 🛠️ Developer-Friendly CLI & API
 - **Auto-Reply AI**: Generate draft replies via `/api/emails/{id}/reply-suggestions`
 - **JWT Authentication**: Pure-Python HS256 tokens securing all data endpoints
+- **Account-aware API retry**: Automatic JWT refresh on 401 responses
 - Auto-generated **OpenAPI docs** at `localhost:8000/docs`
-- Dual dashboards: React (modern) + Streamlit (debug/legacy)
 
 </td>
 </tr>
@@ -175,6 +175,7 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 | **Ollama** | 0.2.1 | Local LLM inference engine (phi3:mini / llama3) |
 | **SQLite** + **SQLAlchemy** | 2.0.30 | Local persistence, zero-config database |
 | **Pandas** | 2.2.2 | Data aggregation and DataFrame queries |
+| **PyJWT** | Latest | HS256 JSON Web Token authentication |
 | **Loguru** | 0.7.2 | Structured, beautiful logging |
 | **Rich** | 13.7.1 | Terminal progress tables and CLI output |
 | **Tenacity** | 8.3.0 | Retry logic for resilient LLM calls |
@@ -189,8 +190,8 @@ Existing AI solutions (Gmail Smart Labels, Superhuman, Shortwave) solve this by 
 | **Tailwind CSS** | Latest | Utility-first styling |
 | **Recharts** | Latest | Data visualization (bar, pie, stacked charts) |
 | **Lucide React** | Latest | Icon library |
-| **Streamlit** | 1.35.0 | Legacy/debug dashboard (Python-native) |
-| **Plotly** | 5.22.0 | Charts for Streamlit dashboard |
+| **xlsx** | Latest | Excel export (.xlsx) |
+| **jspdf** + **jspdf-autotable** | Latest | PDF export |
 
 ### AI & ML
 
@@ -220,11 +221,10 @@ Inbox Intel is a **4-layer local application** with clean separation of concerns
 graph TB
     subgraph Presentation["🖥️ PRESENTATION LAYER"]
         React["⚛️ React Dashboard\n(Port 5173)\nVite + Tailwind + Recharts"]
-        Streamlit["🐍 Streamlit Dashboard\n(Port 8501)\nLegacy / Debug"]
     end
 
     subgraph API["🔌 API / SERVICE LAYER"]
-        FastAPI["⚡ FastAPI Server\n(Port 8000)\nREST + OpenAPI"]
+        FastAPI["⚡ FastAPI Server\n(Port 8000)\nREST + OpenAPI + JWT Auth"]
     end
 
     subgraph Pipeline["🤖 PIPELINE / CORE LAYER"]
@@ -238,8 +238,7 @@ graph TB
         Auth["🔑 OAuth2 Auth\n~/.inbox-intel/token.json"]
     end
 
-    React -->|"HTTP GET/POST"| FastAPI
-    Streamlit -->|"Direct Python import"| FastAPI
+    React -->|"HTTP GET/POST + JWT"| FastAPI
     FastAPI -->|"Python import"| LangGraph
     FastAPI -->|"Python import"| SQLite
     LangGraph -->|"HTTP POST"| Ollama
@@ -254,13 +253,20 @@ graph TB
     style Data fill:#3a1a1a,stroke:#FF6B35,color:#fff
 ```
 
+<div align="center">
+
+> 📐 **Architecture Deep Dive** — Full-resolution visual breakdown
+
+![System Architecture Visualization](screenshots/inbox_intel_visualization.png)
+
+</div>
+
 ### Service Port Map
 
 | Service | Port | Description |
 |---|---|---|
 | ⚛️ React Dashboard | `5173` | Primary user interface (Vite dev server) |
 | ⚡ FastAPI Server | `8000` | REST API — `/docs` for interactive API explorer |
-| 🐍 Streamlit App | `8501` | Legacy dashboard |
 | 🦙 Ollama LLM | `11434` | Local inference engine (must be running) |
 
 ---
@@ -323,6 +329,64 @@ flowchart LR
     G --> H([💾 Store with\nhr_category + hr_confidence\n+ hr_matched_keywords])
 ```
 
+<div align="center">
+
+> 🔬 **Deep Dive Visualization** — Database schema + HR pipeline flow
+
+![Deep Dive Visualization](screenshots/inbox_intel_deep_dive.png)
+
+</div>
+
+---
+
+## 🔲 Application Wireframe
+
+> High-level component layout of the React Dashboard
+
+```mermaid
+block-beta
+    columns 3
+
+    block:header:3
+        columns 3
+        logo["🧠 Inbox Intel"]
+        mode["Standard | HR Toggle"]
+        controls["🌙 Dark Mode | 🔄 Refresh | 📥 Export"]
+    end
+
+    block:metrics:3
+        columns 6
+        m1["📊 Total\n247"]
+        m2["🚫 Spam\n32"]
+        m3["🔥 Urgent\n18"]
+        m4["⚡ Action\n45"]
+        m5["⏳ Awaiting\n28"]
+        m6["❌ Failed\n3"]
+    end
+
+    block:sidebar["🔍 Filters"]:1
+        columns 1
+        f1["📧 Email Type\n☑ SALES\n☑ SUPPORT\n☑ INTERNAL"]
+        f2["⚡ Action\n☑ ACTION_REQUIRED\n☑ FYI"]
+        f3["🏢 Department\n☑ FINANCE\n☑ HR_ADMIN"]
+        f4["🔥 Priority\n☑ URGENT\n☑ STANDARD"]
+    end
+
+    block:main["📊 Charts & Emails"]:2
+        columns 2
+        c1["📊 Email Type\nBar Chart"]
+        c2["📊 Action Intent\nBar Chart"]
+        c3["🥧 Priority\nPie Chart"]
+        c4["📈 Timeline\nStacked Bar"]
+        emails["📋 Email List\nColor-coded tags\nClick to read\nAI reply suggestions"]:2
+    end
+
+    style header fill:#1e293b,color:#fff
+    style metrics fill:#0f172a,color:#fff
+    style sidebar fill:#1e1b4b,color:#fff
+    style main fill:#0f172a,color:#fff
+```
+
 ---
 
 ## 📋 Project Flow — Step by Step
@@ -346,7 +410,7 @@ If Ollama returns malformed JSON or invalid labels, the graph loops back to `cla
 FastAPI's `/api/emails` loads all records via `pandas.read_sql_query()` and returns a JSON array. The React dashboard's `useMemo` hooks compute filtered views, sorted lists, and all chart datasets client-side.
 
 **Step 6 → User Interaction**
-Users can filter by any combination of email type, action, department, or priority. Clicking an email marks it as read (`PATCH /api/emails/{id}/read`). The HR mode toggle shows a confirmation modal before switching classification modes.
+Users can filter by any combination of email type, action, department, or priority. Clicking an email marks it as read (`PATCH /api/emails/{id}/read`). The HR mode toggle shows a confirmation modal before switching classification modes. AI auto-reply suggestions can be generated for any email.
 
 ---
 
@@ -356,7 +420,10 @@ Users can filter by any combination of email type, action, department, or priori
 inbox-intel/
 │
 ├── 📁 api/                         # REST API layer
-│   └── server.py                   # FastAPI app — 6 endpoints, CORS config
+│   ├── server.py                   # FastAPI app — 11 endpoints, CORS, JWT
+│   ├── auth_jwt.py                 # JWT token generation & validation
+│   ├── middleware.py               # Request logging middleware (Loguru)
+│   └── reply.py                    # AI auto-reply suggestion endpoint
 │
 ├── 📁 auth/                        # Authentication layer
 │   └── gmail_auth.py               # OAuth2 flow, token persistence, auto-refresh
@@ -364,13 +431,10 @@ inbox-intel/
 ├── 📁 config/                      # Central configuration
 │   └── settings.py                 # Paths, Ollama config, 4 Label Enums, color maps
 │
-├── 📁 dashboard/                   # Legacy Streamlit dashboard
-│   └── app.py                      # Plotly charts, inline re-classify, CSV export
-│
 ├── 📁 data/                        # Data access layer
-│   ├── schema.sql                  # SQLite DDL — emails table + 4 indexes
+│   ├── schema.sql                  # SQLite DDL — emails table + 7 indexes
 │   ├── store.py                    # CRUD: upsert, load_all, get_stats, mark_as_read
-│   └── fetcher.py                  # Gmail API integration, message decoding
+│   └── fetcher.py                  # Gmail API integration, BatchHttpRequest
 │
 ├── 📁 pipeline/                    # AI classification pipeline
 │   ├── graph.py                    # LangGraph assembly, compile, classify_batch runner
@@ -380,28 +444,40 @@ inbox-intel/
 │   ├── hr_graph.py                 # HR-specific LangGraph pipeline
 │   ├── hr_nodes.py                 # HR classification node functions
 │   ├── hr_keywords.py              # Deterministic keyword matcher + confidence scorer
-│   └── hr_prompts.py               # HR-specific LLM prompts
+│   ├── hr_prompts.py               # HR-specific LLM prompts
+│   └── reply_prompts.py            # AI auto-reply prompt templates
 │
 ├── 📁 react-dashboard/             # Modern React frontend
 │   ├── src/
-│   │   ├── App.jsx                 # Root component
+│   │   ├── App.jsx                 # Root component + Google OAuth login
 │   │   ├── InboxDashboard.jsx      # Main dashboard (all hooks + UI)
+│   │   ├── HRDashboard.jsx         # HR mode dashboard component
+│   │   ├── HREmailCard.jsx         # HR email card with AI replies
 │   │   ├── main.jsx                # ReactDOM entry point
 │   │   └── index.css               # Tailwind base styles
 │   ├── package.json                # Node.js dependencies
-│   └── vite.config.js              # Vite + React plugin config
+│   └── vite.config.js              # Vite + React plugin + API proxy config
 │
 ├── 📁 scripts/                     # CLI & automation
 │   ├── setup.sh                    # One-time setup: venv, deps, Ollama pull, DB init
+│   ├── generate_certs.sh           # Optional TLS certificate generation
 │   └── run.py                      # CLI runner — argparse, Rich output, cron-friendly
 │
-├── 📁 tests/                       # Test suite (pytest)
-│   └── ...                         # Unit tests for nodes, fetcher, store
+├── 📁 tests/                       # Test suite (pytest — 68 tests)
+│   ├── conftest.py                 # Shared fixtures
+│   ├── test_store.py               # Database CRUD tests
+│   ├── test_fetcher.py             # Gmail API fetch tests
+│   ├── test_graph.py               # LangGraph pipeline tests
+│   ├── test_pipeline.py            # End-to-end classification tests
+│   └── test_hr_keywords.py         # HR keyword engine tests
+│
+├── 📁 screenshots/                 # Project screenshots & visualizations
 │
 ├── 📄 .env.example                 # Template — copy to .env and fill credentials
 ├── 📄 .gitignore                   # Excludes venv/, .env, token.json, *.db
 ├── 📄 ARCHITECTURE.md              # Deep-dive architecture documentation
 ├── 📄 FEATURE_LOG.md               # Chronological feature changelog
+├── 📄 PROJECT.md                   # Project context & technical details
 ├── 📄 requirements.txt             # Python dependencies (pinned versions)
 ├── 📄 start.sh                     # macOS multi-service launcher
 ├── 📄 start-linux.sh               # Linux multi-service launcher
@@ -511,7 +587,7 @@ start-windows.bat
 
 This opens three processes simultaneously: Ollama, FastAPI server, and React dashboard.
 
-**Option B — Manual startup (three separate terminals):**
+**Option B — Manual startup (two separate terminals):**
 
 ```bash
 # Terminal 1 — FastAPI backend
@@ -521,10 +597,6 @@ uvicorn api.server:app --reload --port 8000
 # Terminal 2 — React frontend
 cd react-dashboard
 npm run dev
-
-# Terminal 3 — (Optional) Streamlit legacy dashboard
-source venv/bin/activate
-streamlit run dashboard/app.py
 ```
 
 ### 7. First-Time OAuth Flow
@@ -559,20 +631,20 @@ npm run build
 | `OLLAMA_TIMEOUT` | Request timeout in seconds | `60` | ⚙️ Optional |
 | `MAX_EMAILS_PER_RUN` | Maximum emails fetched per classification run | `200` | ⚙️ Optional |
 | `CLASSIFICATION_RETRIES` | LLM retry attempts per email | `3` | ⚙️ Optional |
+| `TOKEN_ENCRYPTION_KEY` | Optional Fernet key for encrypting OAuth tokens | — | ⚙️ Optional |
+| `SSL_KEYFILE` | Path to TLS private key for HTTPS | — | ⚙️ Optional |
+| `SSL_CERTFILE` | Path to TLS certificate for HTTPS | — | ⚙️ Optional |
 
 ---
 
 ## 💻 CLI Commands
 
 ```bash
-# Full run: fetch → classify → open Streamlit
+# Full run: fetch → classify
 python scripts/run.py
 
 # Background classification only (no dashboard) — great for cron
 python scripts/run.py --fetch-only
-
-# Open Streamlit dashboard only (no new classification)
-python scripts/run.py --dash-only
 
 # Run React dashboard dev server
 cd react-dashboard && npm run dev
@@ -619,6 +691,7 @@ All endpoints are served by **FastAPI** on `http://localhost:8000`. Interactive 
 
 ```http
 GET http://localhost:8000/api/emails
+Authorization: Bearer <jwt_token>
 ```
 
 **Response `200 OK`:**
@@ -652,6 +725,7 @@ GET http://localhost:8000/api/emails
 
 ```http
 POST http://localhost:8000/api/classify
+Authorization: Bearer <jwt_token>
 Content-Type: application/json
 ```
 
@@ -672,6 +746,7 @@ Content-Type: application/json
 
 ```http
 GET http://localhost:8000/api/stats
+Authorization: Bearer <jwt_token>
 ```
 
 **Response `200 OK`:**
@@ -692,6 +767,7 @@ GET http://localhost:8000/api/stats
 
 ```http
 PATCH http://localhost:8000/api/emails/19x4b2f3a1c5d6e7/read
+Authorization: Bearer <jwt_token>
 ```
 
 **Response `200 OK`:**
@@ -737,7 +813,7 @@ erDiagram
     }
 ```
 
-**Indexes:** `email_type_label`, `action_label`, `dept_label`, `priority_label`, `is_read` — all indexed for O(log n) filter performance.
+**Indexes:** `email_type_label`, `action_label`, `dept_label`, `priority_label`, `hr_category`, `classification_mode`, `is_read` — all indexed for O(log n) filter performance.
 
 **Data Access Patterns:**
 
@@ -766,9 +842,73 @@ SELECT COUNT(*) FROM emails WHERE is_read = 0;
 | **Secure Credential Storage** | `~/.inbox-intel/` (outside repo) | OAuth tokens and credentials are gitignored |
 | **Token Auto-Refresh** | `google-auth-oauthlib` | Refresh tokens are handled automatically |
 | **JWT Authentication** | Pure-Python HS256 JWT | All frontend-to-backend API calls require Bearer tokens |
+| **Account-Aware Retry** | `apiFetchWithAccountRetry()` | Automatic JWT refresh on 401 responses |
+| **Token Encryption** | Optional Fernet encryption | OAuth tokens can be encrypted at rest |
 | **HTTPS Support** | `generate_certs.sh` | Optional TLS for secure local development |
+| **Rate Limiting** | 10-second cooldown on `/api/classify` | Prevents accidental rapid re-classification |
 | **Local Database** | SQLite at `~/.inbox-intel/emails.db` | No cloud database; all data stays on device |
 | **CORS Control** | FastAPI CORS middleware | Only `localhost:5173` is whitelisted by default |
+| **Input Sanitization** | `_sanitize_text()` | Strips HTML, zero-width chars, and prompt injections |
+
+---
+
+## 📸 Screenshots & Gallery
+
+<details>
+<summary>📊 <strong>React Dashboard — Dark Mode</strong></summary>
+
+![Dashboard Dark](screenshots/screenshot_2026-06-26_at_3.30.53_pm.png)
+
+</details>
+
+<details>
+<summary>☀️ <strong>React Dashboard — Light Mode</strong></summary>
+
+![Dashboard Light](screenshots/screenshot_2026-06-26_at_3.31.05_pm.png)
+
+</details>
+
+<details>
+<summary>🏢 <strong>HR Classification Mode</strong></summary>
+
+![HR Mode](screenshots/screenshot_2026-06-26_at_3.33.59_pm.png)
+
+</details>
+
+<details>
+<summary>📋 <strong>Email Classification List</strong></summary>
+
+![Email List](screenshots/screenshot_2026-06-26_at_3.32.32_pm.png)
+
+</details>
+
+<details>
+<summary>🖥️ <strong>CLI Output (Rich Terminal)</strong></summary>
+
+![CLI Output](screenshots/screenshot_2026-06-26_at_3.31.16_pm.png)
+
+</details>
+
+<details>
+<summary>📡 <strong>FastAPI Swagger Docs</strong></summary>
+
+![API Docs](screenshots/screenshot_2026-06-26_at_3.31.27_pm.png)
+
+</details>
+
+<details>
+<summary>🏗️ <strong>Architecture Visualization</strong></summary>
+
+![Architecture](screenshots/inbox_intel_visualization.png)
+
+</details>
+
+<details>
+<summary>🔬 <strong>Deep Dive — DB Schema & HR Flow</strong></summary>
+
+![Deep Dive](screenshots/inbox_intel_deep_dive.png)
+
+</details>
 
 ---
 
@@ -828,75 +968,6 @@ For automated periodic classification without any UI:
 
 ---
 
-## 🧪 Testing
-
-```bash
-# Install test dependencies (if not already in requirements.txt)
-pip install pytest pytest-cov pytest-asyncio
-
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage report
-pytest tests/ --cov=. --cov-report=html
-open htmlcov/index.html
-
-# Run specific module tests
-pytest tests/test_nodes.py -v
-pytest tests/test_store.py -v
-pytest tests/test_fetcher.py -v
-```
-
----
-
-## 📸 Screenshots
-
-<details>
-<summary>📊 <strong>React Dashboard — Dark Mode</strong></summary>
-
-![Dashboard Dark](screenshots/dark%20dashboard.png)
-
-</details>
-
-<details>
-<summary>☀️ <strong>React Dashboard — Light Mode</strong></summary>
-
-![Dashboard Light](screenshots/light%20dashboard.png)
-
-</details>
-
-<details>
-<summary>🏢 <strong>HR Classification Mode</strong></summary>
-
-![HR Mode](screenshots/hr%20dashboard.png)
-
-</details>
-
-<details>
-<summary>📋 <strong>Email Classification List</strong></summary>
-
-![Email List](screenshots/email%20list.png)
-
-</details>
-
-<details>
-<summary>🐍 <strong>Streamlit Legacy Dashboard</strong></summary>
-
-> *Replace with actual screenshot*
-![Streamlit](https://placehold.co/1200x700/262730/009688?text=Streamlit+Dashboard%0ALegacy+%2F+Debug+View)
-
-</details>
-
-<details>
-<summary>🖥️ <strong>CLI Output (Rich Terminal)</strong></summary>
-
-> *Replace with actual screenshot*
-![CLI](https://placehold.co/1200x500/0d0d0d/00FF41?text=Rich+CLI+Output%0AClassification+Progress+Table+%7C+Summary+Stats)
-
-</details>
-
----
-
 ## ⚡ Performance Notes
 
 | Metric | Value | Notes |
@@ -907,6 +978,7 @@ pytest tests/test_fetcher.py -v
 | **React Filter/Sort** | <16ms | Client-side via `useMemo`, no DB query |
 | **LLM Retry Budget** | 3 attempts | `CLASSIFICATION_RETRIES` in `.env` |
 | **DB Size (1000 emails)** | ~2–5MB | SQLite; negligible storage footprint |
+| **Stats Cache TTL** | 30 seconds | In-memory cache with auto-invalidation |
 
 **Model Comparison:**
 
@@ -917,6 +989,50 @@ pytest tests/test_fetcher.py -v
 | `mistral` | ⚡ Fast | ✅ Good | ~4GB |
 
 ---
+
+## 🧪 Testing
+
+```bash
+# Install test dependencies (if not already in requirements.txt)
+pip install pytest pytest-cov
+
+# Run all tests (68 tests)
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=. --cov-report=html
+open htmlcov/index.html
+
+# Run specific module tests
+pytest tests/test_store.py -v
+pytest tests/test_fetcher.py -v
+pytest tests/test_graph.py -v
+pytest tests/test_hr_keywords.py -v
+```
+
+---
+
+## 🗺️ Roadmap
+
+| Status | Feature | Priority |
+|---|---|---|
+| ✅ Done | 4-Dimensional Classification Pipeline | Core |
+| ✅ Done | HR Classification Mode + Consensus Engine | Core |
+| ✅ Done | React Dashboard (Dark/Light, Charts, Filters) | Core |
+| ✅ Done | JWT Authentication + Multi-Account OAuth | Security |
+| ✅ Done | AI Auto-Reply Suggestions | Feature |
+| ✅ Done | Model Switching (Multiple Ollama models) | Feature |
+| ✅ Done | Excel & PDF Export | Feature |
+| ✅ Done | Unit Test Suite (68 tests) | Quality |
+| ✅ Done | API Pagination + Stats Caching | Performance |
+| ✅ Done | Rate Limiting + Token Encryption | Security |
+| 🔄 Planned | WebSocket Real-Time Updates | Feature |
+| 🔄 Planned | Email Threading View | Feature |
+| 🔄 Planned | Multi-Provider Support (Outlook, IMAP) | Feature |
+| 🔄 Planned | Docker Containerization | DevOps |
+| 🔄 Planned | Custom Classification Rules | Feature |
+| 🔄 Planned | Background Job Queue (Celery/RQ) | Architecture |
+| 🔄 Planned | Database Migrations (Alembic) | Architecture |
 
 ---
 
@@ -984,14 +1100,14 @@ chore:    Dependency updates, config changes
 <details>
 <summary><strong>Q: Which LLM model should I use?</strong></summary>
 
-For most setups, `phi3:mini` offers the best speed/accuracy balance and runs on ~3GB of RAM. If you have more RAM (8GB+), `llama3` produces better classification accuracy. You can switch models by changing `OLLAMA_MODEL` in your `.env` file.
+For most setups, `phi3:mini` offers the best speed/accuracy balance and runs on ~3GB of RAM. If you have more RAM (8GB+), `llama3` produces better classification accuracy. You can switch models by changing `OLLAMA_MODEL` in your `.env` file or by using the model switcher in the dashboard UI.
 
 </details>
 
 <details>
 <summary><strong>Q: Can I use a cloud LLM like OpenAI or Anthropic?</strong></summary>
 
-Not out of the box — but it's possible. The classification call in `pipeline/nodes.py` can be replaced with any OpenAI-compatible client. See the [Model Swap Strategy](#) in `ARCHITECTURE.md`. Note: using a cloud LLM means your email content will leave your machine.
+Not out of the box — but it's possible. The classification call in `pipeline/nodes.py` can be replaced with any OpenAI-compatible client. See the Model Swap Strategy in `ARCHITECTURE.md`. Note: using a cloud LLM means your email content will leave your machine.
 
 </details>
 
@@ -1138,7 +1254,6 @@ Special thanks to the open-source projects that make Inbox Intel possible:
 | [**Recharts**](https://recharts.org/) | Beautiful, composable React charts |
 | [**Tailwind CSS**](https://tailwindcss.com/) | Utility-first CSS framework |
 | [**Lucide React**](https://lucide.dev/) | Clean, consistent icon set |
-| [**Streamlit**](https://streamlit.io/) | Rapid Python dashboard prototyping |
 | [**Google Gmail API**](https://developers.google.com/gmail/api) | Secure, programmatic Gmail access |
 
 ---
