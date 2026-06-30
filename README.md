@@ -31,7 +31,7 @@
 
 <br/>
 
-[🚀 Quick Start](#-quick-start) • [✨ Features](#-key-features) • [🏗️ Architecture](#️-system-architecture) • [📡 API Docs](#-api-documentation) • [📸 Screenshots](#-screenshots--gallery) • [🗺️ Roadmap](#️-roadmap) • [🤝 Contributing](#-contributing)
+[🚀 Quick Start](#-quick-start) • [✨ Features](#-key-features) • [🏗️ Architecture](#️-system-architecture) • [📡 API Docs](#-api-documentation) • [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -852,122 +852,6 @@ SELECT COUNT(*) FROM emails WHERE is_read = 0;
 
 ---
 
-## 📸 Screenshots & Gallery
-
-<details>
-<summary>📊 <strong>React Dashboard — Dark Mode</strong></summary>
-
-![Dashboard Dark](screenshots/screenshot_2026-06-26_at_3.30.53_pm.png)
-
-</details>
-
-<details>
-<summary>☀️ <strong>React Dashboard — Light Mode</strong></summary>
-
-![Dashboard Light](screenshots/screenshot_2026-06-26_at_3.31.05_pm.png)
-
-</details>
-
-<details>
-<summary>🏢 <strong>HR Classification Mode</strong></summary>
-
-![HR Mode](screenshots/screenshot_2026-06-26_at_3.33.59_pm.png)
-
-</details>
-
-<details>
-<summary>📋 <strong>Email Classification List</strong></summary>
-
-![Email List](screenshots/screenshot_2026-06-26_at_3.32.32_pm.png)
-
-</details>
-
-<details>
-<summary>🖥️ <strong>CLI Output (Rich Terminal)</strong></summary>
-
-![CLI Output](screenshots/screenshot_2026-06-26_at_3.31.16_pm.png)
-
-</details>
-
-<details>
-<summary>📡 <strong>FastAPI Swagger Docs</strong></summary>
-
-![API Docs](screenshots/screenshot_2026-06-26_at_3.31.27_pm.png)
-
-</details>
-
-<details>
-<summary>🏗️ <strong>Architecture Visualization</strong></summary>
-
-![Architecture](screenshots/inbox_intel_visualization.png)
-
-</details>
-
-<details>
-<summary>🔬 <strong>Deep Dive — DB Schema & HR Flow</strong></summary>
-
-![Deep Dive](screenshots/inbox_intel_deep_dive.png)
-
-</details>
-
----
-
-## 🚀 Deployment
-
-### Local (Recommended)
-
-Inbox Intel is designed as a local-first application. The startup scripts handle everything:
-
-```bash
-bash start.sh          # macOS
-bash start-linux.sh    # Linux
-start-windows.bat      # Windows
-```
-
-### Docker *(Planned — See Roadmap)*
-
-Docker support is on the roadmap. The planned setup:
-
-```yaml
-# docker-compose.yml (planned)
-version: '3.8'
-services:
-  backend:
-    build: .
-    ports:
-      - "8000:8000"
-    volumes:
-      - ~/.inbox-intel:/root/.inbox-intel
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-
-  frontend:
-    build: ./react-dashboard
-    ports:
-      - "5173:5173"
-
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_models:/root/.ollama
-
-volumes:
-  ollama_models:
-```
-
-### Cron Job / Background Classification
-
-For automated periodic classification without any UI:
-
-```bash
-# Add to crontab: classify emails every 30 minutes
-*/30 * * * * cd /path/to/Email-Categoriser && source venv/bin/activate && python scripts/run.py --fetch-only >> ~/.inbox-intel/cron.log 2>&1
-```
-
----
-
 ## ⚡ Performance Notes
 
 | Metric | Value | Notes |
@@ -1009,30 +893,6 @@ pytest tests/test_fetcher.py -v
 pytest tests/test_graph.py -v
 pytest tests/test_hr_keywords.py -v
 ```
-
----
-
-## 🗺️ Roadmap
-
-| Status | Feature | Priority |
-|---|---|---|
-| ✅ Done | 4-Dimensional Classification Pipeline | Core |
-| ✅ Done | HR Classification Mode + Consensus Engine | Core |
-| ✅ Done | React Dashboard (Dark/Light, Charts, Filters) | Core |
-| ✅ Done | JWT Authentication + Multi-Account OAuth | Security |
-| ✅ Done | AI Auto-Reply Suggestions | Feature |
-| ✅ Done | Model Switching (Multiple Ollama models) | Feature |
-| ✅ Done | Excel & PDF Export | Feature |
-| ✅ Done | Unit Test Suite (68 tests) | Quality |
-| ✅ Done | API Pagination + Stats Caching | Performance |
-| ✅ Done | Rate Limiting + Token Encryption | Security |
-| 🔄 Planned | WebSocket Real-Time Updates | Feature |
-| 🔄 Planned | Email Threading View | Feature |
-| 🔄 Planned | Multi-Provider Support (Outlook, IMAP) | Feature |
-| 🔄 Planned | Docker Containerization | DevOps |
-| 🔄 Planned | Custom Classification Rules | Feature |
-| 🔄 Planned | Background Job Queue (Celery/RQ) | Architecture |
-| 🔄 Planned | Database Migrations (Alembic) | Architecture |
 
 ---
 
