@@ -592,3 +592,4 @@ React renders: metrics → charts → email list
 | **Observability** | Loguru logging at every step; Rich CLI output for human readability |
 
 
+     
