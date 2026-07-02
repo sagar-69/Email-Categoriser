@@ -18,7 +18,10 @@ OLLAMA_MODEL    = os.getenv("OLLAMA_MODEL", "llama3")
 OLLAMA_TIMEOUT  = int(os.getenv("OLLAMA_TIMEOUT", "60"))
 
 # ── Gmail ────────────────────────────────────────────────────────────────────
-GMAIL_SCOPES      = ["https://www.googleapis.com/auth/gmail.readonly"]
+GMAIL_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",  # create + send own drafts
+]
 MAX_EMAILS_PER_RUN = int(os.getenv("MAX_EMAILS_PER_RUN", "200"))
 
 # ── Security ─────────────────────────────────────────────────────────────────

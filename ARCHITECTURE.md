@@ -115,26 +115,32 @@ useCallback: loadEmails, handleRefresh, handleExport
 
 ### 2.2 Backend Layer
 
-```
 Backend is organized by responsibility:
 
 auth/          → Authentication (Gmail OAuth2)
+├── gmail_auth.py  → Multi-account OAuth logic
+├── auth_jwt.py    → API token issuance
+└── gmail_compose.py → Draft creation and sending (reply feature)
+
 config/        → Central configuration & enums
 ├── settings.py    → Paths, Ollama config, Gmail scopes, Enums, Display maps
 
 data/          → Data access layer
-├── schema.sql     → SQLite DDL
+├── schema.sql     → SQLite DDL (emails, pending_sends, sent_replies)
 ├── store.py       → CRUD operations (upsert, load, stats)
 └── fetcher.py     → Gmail API integration
 
-pipeline/      → AI classification pipeline
+pipeline/      → AI classification pipeline & Reply Service
 ├── state.py       → EmailState TypedDict (shared state object)
 ├── prompts.py     → LLM system prompt + user prompt builder
 ├── nodes.py       → 3 LangGraph node functions
-└── graph.py       → Graph assembly + compile + runner functions
+├── graph.py       → Graph assembly + compile + runner functions
+├── reply_service.py → On-demand draft generation + thread summarization
+└── send_worker.py → Asyncio background loop for delayed sends
 
 api/           → REST API layer
-└── server.py      → FastAPI app with 4 endpoints
+├── server.py      → FastAPI app (classification endpoints + background tasks)
+└── reply.py       → Reply v2 endpoints (generate, queue-send, cancel)
 
 scripts/       → CLI & automation
 ├── setup.sh       → Environment setup (venv, deps, Ollama model)

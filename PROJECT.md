@@ -77,7 +77,9 @@
 | `PATCH` | `/api/emails/{email_id}/read` | Marks an email as read |
 | `POST` | `/api/classify` | Triggers full pipeline (fetch + classify new emails) |
 | `POST` | `/api/auth/token` | Google OAuth2 token exchange / refresh |
-| `GET` | `/api/emails/{id}/reply-suggestions` | Generates AI auto-reply suggestions |
+| `POST` | `/api/emails/{id}/generate-reply` | Generates a steered AI draft reply |
+| `POST` | `/api/emails/{id}/queue-send` | Queues a draft for delayed sending |
+| `POST` | `/api/pending-sends/{queue_id}/cancel` | Cancels a queued delayed send |
 | `GET` | `/api/models` | Lists available Ollama models |
 
 ### Gmail API Endpoints (via `googleapiclient`)
@@ -86,6 +88,9 @@
 |--------|----------|---------|
 | `GET` | `users().messages().list(q="is:unread")` | List unread message IDs |
 | `GET` | `users().messages().get(format="full")` | Fetch full message details |
+| `GET` | `users().threads().get(format="full")` | Fetch full thread context for AI replies |
+| `POST` | `users().drafts().create()` | Save generated reply as Gmail draft |
+| `POST` | `users().drafts().send()` | Send draft from the delayed send queue |
 
 ### Ollama API (Local)
 

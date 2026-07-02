@@ -226,6 +226,26 @@
 - **Rationale**: HR mode needed the same triage ergonomics as Standard view.
 - **Impact**: Users can reorder filtered HR email list directly.
 
+### July 2026
+
+#### [✅] Added — Human-in-the-Loop Reply (v2) [Backend]
+- **Date**: 2026-07-02
+- **Change**: Added `pipeline/reply_service.py` to generate guided AI drafts using local LLMs, replacing the v1 rigid 3-suggestion copy/paste. Added thread-context fetching with automatic summarization.
+- **Rationale**: Replaces the fake UI undo with a real server-side delay queue for genuine control.
+- **Impact**: Better, context-aware drafts that users can steer.
+
+#### [✅] Added — Gmail Compose Scope & Auth Check
+- **Date**: 2026-07-02
+- **Change**: Updated OAuth scopes to include `gmail.compose` and added `auth/gmail_compose.py` helpers. Added scope-mismatch detection to prompt re-auth.
+- **Rationale**: Required for the app to create and send drafts. `gmail.compose` is safer than `gmail.send`.
+- **Impact**: Inbox Intel can now write drafts directly to Gmail.
+
+#### [✅] Added — Delayed Send Queue & Background Worker
+- **Date**: 2026-07-02
+- **Change**: Added `pending_sends` and `sent_replies` tables. Created `pipeline/send_worker.py` asyncio loop running in FastAPI to process delayed sends.
+- **Rationale**: Enables a real "Undo" button. Drafts are sent only when the 8-second timer expires.
+- **Impact**: Highly reliable and robust send pipeline.
+
 ---
 
 ## Pending / Planned Changes
@@ -308,6 +328,9 @@
 | 2026-06-26 | 🔧 | `/api/classify` Error Semantics fix |
 | 2026-06-26 | ✅ | Account-Aware API Retry logic |
 | 2026-06-26 | ✅ | HR Dashboard Sorting Controls |
+| 2026-07-02 | ✅ | Human-in-the-Loop Reply (v2) [Backend] |
+| 2026-07-02 | ✅ | Gmail Compose Scope & Auth Check |
+| 2026-07-02 | ✅ | Delayed Send Queue & Background Worker |
 | TBD | ✅ | WebSocket real-time updates |
 | TBD | ✅ | Email threading view |
 | TBD | 🏗️ | Background job queue (Celery/RQ) |

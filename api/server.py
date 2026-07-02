@@ -60,8 +60,12 @@ app.include_router(reply_router)
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     init_db()
+    # Start the delayed-send background worker (reply v2)
+    import asyncio
+    from pipeline.send_worker import pending_send_worker
+    asyncio.create_task(pending_send_worker())
 
 
 # ── Public Auth Endpoints ────────────────────────────────────────────────────

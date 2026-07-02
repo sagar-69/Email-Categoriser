@@ -13,7 +13,7 @@ Performance features:
 import sqlite3
 import time
 import pandas as pd
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from loguru import logger
 
@@ -319,3 +319,94 @@ def list_authenticated_accounts() -> list[str]:
             "SELECT DISTINCT owner_email FROM emails WHERE owner_email IS NOT NULL ORDER BY owner_email"
         )
         return [row[0] for row in cur.fetchall()]
+
+
+# ── Pending send queue (reply v2) ────────────────────────────────────────────
+
+def enqueue_pending_send(
+    email_id: str,
+    gmail_draft_id: str,
+    draft_text: str,
+    final_text: str,
+    delay_seconds: int = 8,
+    owner_email: str | None = None,
+) -> int:
+    """
+    Queue a draft for delayed sending.
+    Returns the queue_id (row ID) used to cancel later.
+    """
+    send_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+    with _conn() as con:
+        cur = con.execute(
+            """INSERT INTO pending_sends
+               (email_id, gmail_draft_id, draft_text, final_text,
+                status, scheduled_send_at, owner_email)
+               VALUES (?, ?, ?, ?, 'scheduled', ?, ?)""",
+            (email_id, gmail_draft_id, draft_text, final_text,
+             send_at.isoformat(), owner_email),
+        )
+        queue_id = cur.lastrowid
+    logger.info(
+        "Enqueued pending send {} for email {} (delay={}s)",
+        queue_id, email_id, delay_seconds,
+    )
+    return queue_id
+
+
+def cancel_pending_send(queue_id: int) -> bool:
+    """
+    Cancel a queued send if it hasn't fired yet.
+    Returns True if cancelled, False if already sent/cancelled.
+    """
+    with _conn() as con:
+        cur = con.execute(
+            "UPDATE pending_sends SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'",
+            (queue_id,),
+        )
+        cancelled = cur.rowcount > 0
+    if cancelled:
+        logger.info("Cancelled pending send {}", queue_id)
+    else:
+        logger.warning("Cannot cancel pending send {} — not in 'scheduled' state", queue_id)
+    return cancelled
+
+
+def get_due_pending_sends() -> list[dict]:
+    """Return all pending sends that are due (scheduled + send_at <= now)."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as con:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            "SELECT * FROM pending_sends WHERE status = 'scheduled' AND scheduled_send_at <= ?",
+            (now,),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+def mark_pending_send(queue_id: int, status: str) -> None:
+    """Update the status of a pending send row."""
+    with _conn() as con:
+        con.execute(
+            "UPDATE pending_sends SET status = ? WHERE id = ?",
+            (status, queue_id),
+        )
+    logger.debug("Marked pending send {} as '{}'", queue_id, status)
+
+
+def log_sent_reply(
+    email_id: str,
+    draft_text: str,
+    final_text: str,
+    message_id: str,
+    owner_email: str | None = None,
+) -> None:
+    """Record a successfully sent reply in the audit table."""
+    with _conn() as con:
+        con.execute(
+            """INSERT INTO sent_replies
+               (email_id, draft_text, final_text, message_id, owner_email)
+               VALUES (?, ?, ?, ?, ?)""",
+            (email_id, draft_text, final_text, message_id, owner_email),
+        )
+    logger.info("Logged sent reply for email {} (message_id={})", email_id, message_id)
+

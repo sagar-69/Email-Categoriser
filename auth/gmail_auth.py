@@ -270,6 +270,17 @@ def get_credentials(owner_email: str | None = None) -> Credentials:
                 "Please re-authenticate via the dashboard."
             )
 
+    # ── Scope-mismatch detection ─────────────────────────────────────────
+    # Tokens issued before the gmail.compose scope was added will be
+    # missing it. Detect this so callers get a clear error.
+    if creds.scopes:
+        missing = set(GMAIL_SCOPES) - set(creds.scopes)
+        if missing:
+            logger.warning(
+                "Token for {} is missing scopes: {}. Re-authentication required.",
+                owner_email or "default", missing,
+            )
+
     return creds
 
 

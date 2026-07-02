@@ -34,3 +34,32 @@ CREATE INDEX IF NOT EXISTS idx_classification_mode ON emails(classification_mode
 CREATE INDEX IF NOT EXISTS idx_is_read ON emails(is_read);
 CREATE INDEX IF NOT EXISTS idx_owner_email ON emails(owner_email);
 
+-- ── Reply feature v2: delayed send queue ────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS pending_sends (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    email_id          TEXT NOT NULL,
+    gmail_draft_id    TEXT NOT NULL,
+    draft_text        TEXT NOT NULL,
+    final_text        TEXT NOT NULL,
+    status            TEXT DEFAULT 'scheduled',
+    scheduled_send_at TEXT NOT NULL,
+    created_at        TEXT DEFAULT (datetime('now')),
+    owner_email       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pending_status ON pending_sends(status);
+CREATE INDEX IF NOT EXISTS idx_pending_send_at ON pending_sends(scheduled_send_at);
+
+-- ── Reply feature v2: audit log ─────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS sent_replies (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    email_id    TEXT NOT NULL,
+    draft_text  TEXT NOT NULL,
+    final_text  TEXT NOT NULL,
+    message_id  TEXT,
+    sent_at     TEXT DEFAULT (datetime('now')),
+    owner_email TEXT
+);
+
