@@ -140,7 +140,7 @@ pipeline/      → AI classification pipeline & Reply Service
 
 api/           → REST API layer
 ├── server.py      → FastAPI app (classification endpoints + background tasks)
-└── reply.py       → Reply v2 endpoints (generate, queue-send, cancel)
+└── reply.py       → Reply v2 endpoints (generate, queue-send, status, cancel)
 
 scripts/       → CLI & automation
 ├── setup.sh       → Environment setup (venv, deps, Ollama model)
@@ -433,7 +433,8 @@ The prompt in `pipeline/prompts.py` is the **most critical file** in the system:
 
 Standard and HR dashboards share AI controls:
 - **Ollama model switcher**: `/api/models`
-- **AI Auto-Reply Suggestions**: `apiFetchWithAccountRetry()` triggers `/api/emails/{id}/reply-suggestions`
+- **Human-in-the-loop reply composer**: `DraftReplyPanel.jsx` triggers `/api/emails/{id}/generate-reply`, `/api/emails/{id}/queue-send`, `/api/pending-sends/{queue_id}`, and `/api/pending-sends/{queue_id}/cancel`.
+- **Reply safety controls**: steering input, quick intent chips, editable draft, local edit highlighting, backend-confirmed delayed send, and real Undo before `drafts.send`.
 - **Re-classification**: Refresh triggers `POST /api/classify` with the selected model.
 
 ---

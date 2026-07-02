@@ -353,15 +353,20 @@ def enqueue_pending_send(
     return queue_id
 
 
-def cancel_pending_send(queue_id: int) -> bool:
+def cancel_pending_send(queue_id: int, owner_email: str | None = None) -> bool:
     """
     Cancel a queued send if it hasn't fired yet.
     Returns True if cancelled, False if already sent/cancelled.
     """
     with _conn() as con:
+        sql = "UPDATE pending_sends SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'"
+        params = [queue_id]
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
         cur = con.execute(
-            "UPDATE pending_sends SET status = 'cancelled' WHERE id = ? AND status = 'scheduled'",
-            (queue_id,),
+            sql,
+            params,
         )
         cancelled = cur.rowcount > 0
     if cancelled:
@@ -369,6 +374,19 @@ def cancel_pending_send(queue_id: int) -> bool:
     else:
         logger.warning("Cannot cancel pending send {} — not in 'scheduled' state", queue_id)
     return cancelled
+
+
+def load_pending_send(queue_id: int, owner_email: str | None = None) -> dict | None:
+    """Return one pending send row as a dict, optionally scoped by owner."""
+    with _conn() as con:
+        con.row_factory = sqlite3.Row
+        sql = "SELECT * FROM pending_sends WHERE id = ?"
+        params = [queue_id]
+        if owner_email:
+            sql += " AND owner_email = ?"
+            params.append(owner_email)
+        row = con.execute(sql, params).fetchone()
+        return dict(row) if row else None
 
 
 def get_due_pending_sends() -> list[dict]:
@@ -409,4 +427,3 @@ def log_sent_reply(
             (email_id, draft_text, final_text, message_id, owner_email),
         )
     logger.info("Logged sent reply for email {} (message_id={})", email_id, message_id)
-

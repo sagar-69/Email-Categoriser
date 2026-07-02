@@ -246,6 +246,19 @@
 - **Rationale**: Enables a real "Undo" button. Drafts are sent only when the 8-second timer expires.
 - **Impact**: Highly reliable and robust send pipeline.
 
+#### [✅] Added — Human-in-the-Loop Reply (v2) [Frontend]
+- **Date**: 2026-07-02
+- **Change**: Mounted `DraftReplyPanel.jsx` in both Standard and HR email cards, replacing the older copy-only "Suggest Replies" UI in the dashboard.
+- **Features**: Steering input, quick intent chips, editable draft textarea, local word-level edit highlighting, delayed-send countdown, Undo, account-aware JWT retry, selected-model forwarding, and backend send-status polling.
+- **Rationale**: Completes phase 4 of `implementation_v2.md` so users can control intent, edit the AI draft, and rely on a real backend send gate instead of a visual-only undo.
+- **Impact**: Reply generation is now a complete human-in-the-loop workflow from dashboard to Gmail draft/send queue.
+
+#### [✅] Added — Delayed Send Status Endpoint & Store Tests
+- **Date**: 2026-07-02
+- **Change**: Added `GET /api/pending-sends/{queue_id}` and owner-scoped pending-send lookup/cancel behavior. Added store tests for enqueue, owner-scoped cancel, and idempotent cancel.
+- **Rationale**: The frontend should only show "Sent" after the backend worker confirms the queued send, and queue operations should remain account-aware.
+- **Impact**: Safer multi-account behavior and more accurate send-state UI.
+
 ---
 
 ## Pending / Planned Changes
@@ -331,6 +344,8 @@
 | 2026-07-02 | ✅ | Human-in-the-Loop Reply (v2) [Backend] |
 | 2026-07-02 | ✅ | Gmail Compose Scope & Auth Check |
 | 2026-07-02 | ✅ | Delayed Send Queue & Background Worker |
+| 2026-07-02 | ✅ | Human-in-the-Loop Reply (v2) [Frontend] |
+| 2026-07-02 | ✅ | Delayed Send Status Endpoint & Store Tests |
 | TBD | ✅ | WebSocket real-time updates |
 | TBD | ✅ | Email threading view |
 | TBD | 🏗️ | Background job queue (Celery/RQ) |

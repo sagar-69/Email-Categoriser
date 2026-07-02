@@ -70,11 +70,8 @@ export default function HRDashboard({
   emails,
   darkMode,
   onMarkRead,
-  onSuggestReplies,
-  replyLoading = {},
-  replySuggestions = {},
-  copiedReply,
-  onCopyReply,
+  ownerEmail,
+  selectedModel,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategories, setSelectedCategories] = useState(
@@ -456,11 +453,8 @@ export default function HRDashboard({
               email={email}
               darkMode={darkMode}
               onMarkRead={onMarkRead}
-              onSuggestReplies={onSuggestReplies}
-              replyLoading={replyLoading[email.id]}
-              replySuggestions={replySuggestions[email.id]}
-              copiedReply={copiedReply}
-              onCopyReply={onCopyReply}
+              ownerEmail={ownerEmail}
+              selectedModel={selectedModel}
             />
           ))}
           {sorted.length === 0 && (

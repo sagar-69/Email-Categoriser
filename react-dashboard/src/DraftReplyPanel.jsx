@@ -9,17 +9,16 @@
  *   darkMode    — boolean
  *   ownerEmail  — optional, multi-account
  *   selectedModel — optional Ollama model override
- *   apiBase     — API base URL (default http://localhost:8000)
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { diffWords } from 'diff';
 import {
   Sparkles, Send, Undo2, Loader2, RefreshCw,
   ChevronDown, ChevronUp, Check
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
+const TOKEN_KEY = 'inbox_intel_jwt';
 
 // Quick-intent chips: label → instruction sent to the LLM
 const QUICK_INTENTS = [
@@ -33,17 +32,41 @@ const QUICK_INTENTS = [
 // ── Helper: fetch with JWT ──────────────────────────────────────────────────
 
 function getAuthHeaders() {
-  const token = localStorage.getItem('inbox_intel_token');
+  const token = localStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiFetch(url, options = {}) {
+async function refreshTokenForAccount(ownerEmail) {
+  if (!ownerEmail) return false;
+  const res = await fetch(`${API_BASE}/api/auth/token?email=${encodeURIComponent(ownerEmail)}`, {
+    method: 'POST',
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  if (!data.token) return false;
+  localStorage.setItem(TOKEN_KEY, data.token);
+  return true;
+}
+
+async function apiFetch(url, options = {}, ownerEmail = null) {
+  if (ownerEmail) {
+    await refreshTokenForAccount(ownerEmail);
+  }
   const headers = {
     'Content-Type': 'application/json',
     ...getAuthHeaders(),
     ...(options.headers || {}),
   };
-  const res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { ...options, headers });
+  if (res.status === 401 && ownerEmail && await refreshTokenForAccount(ownerEmail)) {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...getAuthHeaders(),
+      },
+    });
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error(`API error ${res.status}: ${detail}`);
@@ -57,7 +80,7 @@ async function apiFetch(url, options = {}) {
 function DiffHighlight({ original, edited, darkMode }) {
   if (!original || original === edited) return null;
 
-  const parts = diffWords(original, edited);
+  const parts = diffWordsLocal(original, edited);
   return (
     <div className={`text-sm whitespace-pre-wrap leading-relaxed p-3 rounded-lg border ${
       darkMode
@@ -86,6 +109,64 @@ function DiffHighlight({ original, edited, darkMode }) {
   );
 }
 
+function tokenizeForDiff(text) {
+  return String(text || '').match(/\s+|[^\s]+/g) || [];
+}
+
+function diffWordsLocal(original, edited) {
+  const a = tokenizeForDiff(original);
+  const b = tokenizeForDiff(edited);
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp = Array.from({ length: rows }, () => Array(cols).fill(0));
+
+  for (let i = a.length - 1; i >= 0; i -= 1) {
+    for (let j = b.length - 1; j >= 0; j -= 1) {
+      dp[i][j] = a[i] === b[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const parts = [];
+  const push = (value, kind = 'same') => {
+    if (!value) return;
+    const last = parts[parts.length - 1];
+    const added = kind === 'added';
+    const removed = kind === 'removed';
+    if (last && !!last.added === added && !!last.removed === removed) {
+      last.value += value;
+    } else {
+      parts.push({ value, added, removed });
+    }
+  };
+
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      push(a[i]);
+      i += 1;
+      j += 1;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      push(a[i], 'removed');
+      i += 1;
+    } else {
+      push(b[j], 'added');
+      j += 1;
+    }
+  }
+  while (i < a.length) {
+    push(a[i], 'removed');
+    i += 1;
+  }
+  while (j < b.length) {
+    push(b[j], 'added');
+    j += 1;
+  }
+  return parts;
+}
+
 
 // ── Main component ──────────────────────────────────────────────────────────
 
@@ -106,6 +187,7 @@ export default function DraftReplyPanel({
   const [editedText, setEditedText] = useState('');
   const [generating, setGenerating] = useState(false);
   const [hasEdited, setHasEdited] = useState(false);
+  const [error, setError] = useState('');
 
   // Send state
   const [sendState, setSendState] = useState('idle');
@@ -136,15 +218,18 @@ export default function DraftReplyPanel({
         {
           method: 'POST',
           body: JSON.stringify({ instruction: finalInstruction }),
-        }
+        },
+        ownerEmail
       );
 
       setOriginalDraft(data.draft);
       setEditedText(data.draft);
       setHasEdited(false);
       setSendState('idle');
+      setError('');
     } catch (err) {
       console.error('Reply generation failed:', err);
+      setError(err.message || 'Reply generation failed.');
     } finally {
       setGenerating(false);
     }
@@ -167,12 +252,14 @@ export default function DraftReplyPanel({
             text: editedText,
             original_draft: originalDraft,
           }),
-        }
+        },
+        ownerEmail
       );
 
       setQueueId(data.queue_id);
       setCountdown(data.delay_seconds);
       setSendState('countdown');
+      setError('');
 
       // Start countdown timer
       let remaining = data.delay_seconds;
@@ -182,15 +269,53 @@ export default function DraftReplyPanel({
         if (remaining <= 0) {
           clearInterval(countdownRef.current);
           countdownRef.current = null;
-          setSendState('sent');
+          pollSendStatus(data.queue_id);
         }
       }, 1000);
 
     } catch (err) {
       console.error('Queue send failed:', err);
+      setError(err.message || 'Send failed.');
       setSendState('failed');
     }
   }, [email.id, editedText, originalDraft, ownerEmail]);
+
+  const pollSendStatus = useCallback(async (id) => {
+    const startedAt = Date.now();
+    const timeoutMs = 10000;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      try {
+        const data = await apiFetch(
+          `${API_BASE}/api/pending-sends/${id}`,
+          { method: 'GET' },
+          ownerEmail
+        );
+        if (data.status === 'sent') {
+          setSendState('sent');
+          setQueueId(null);
+          setError('');
+          return;
+        }
+        if (data.status === 'failed') {
+          setSendState('failed');
+          setError('The delayed send failed. The Gmail draft may still be available.');
+          return;
+        }
+        if (data.status === 'cancelled') {
+          setSendState('idle');
+          setQueueId(null);
+          return;
+        }
+      } catch (err) {
+        console.error('Send status check failed:', err);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    setSendState('failed');
+    setError('Could not confirm whether Gmail sent the draft. Check Gmail drafts/sent mail before retrying.');
+  }, [ownerEmail]);
 
 
   // ── Undo (cancel) ──────────────────────────────────────────────────────
@@ -204,16 +329,19 @@ export default function DraftReplyPanel({
     try {
       await apiFetch(
         `${API_BASE}/api/pending-sends/${queueId}/cancel`,
-        { method: 'POST' }
+        { method: 'POST' },
+        ownerEmail
       );
       setSendState('idle');
       setQueueId(null);
+      setError('');
     } catch (err) {
       console.error('Cancel failed:', err);
       // If 409 it was already sent
       setSendState('sent');
+      setError('Undo window already closed.');
     }
-  }, [queueId]);
+  }, [queueId, ownerEmail]);
 
 
   // Cleanup on unmount
@@ -242,6 +370,7 @@ export default function DraftReplyPanel({
   const dangerBtn = darkMode
     ? 'bg-amber-700 hover:bg-amber-600 text-white'
     : 'bg-amber-500 hover:bg-amber-600 text-white';
+  const originalEmailText = email.body_preview || email.snippet || '';
 
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -313,7 +442,32 @@ export default function DraftReplyPanel({
             </div>
           </div>
 
+          {originalEmailText && (
+            <div>
+              <label className={`text-xs font-medium block mb-1.5 ${textSub}`}>
+                Original email
+              </label>
+              <div className={`text-sm whitespace-pre-wrap leading-relaxed max-h-36 overflow-y-auto p-3 rounded-lg border ${
+                darkMode
+                  ? 'bg-stone-900/60 border-stone-700 text-stone-300'
+                  : 'bg-white border-stone-200 text-stone-700'
+              }`}>
+                {originalEmailText}
+              </div>
+            </div>
+          )}
+
           {/* ── Draft editor ──────────────────────────────────────── */}
+          {error && (
+            <div className={`text-xs rounded-lg border px-3 py-2 ${
+              darkMode
+                ? 'bg-red-950/40 border-red-800 text-red-300'
+                : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              {error}
+            </div>
+          )}
+
           {originalDraft && (
             <>
               <div>

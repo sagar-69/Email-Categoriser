@@ -10,10 +10,11 @@ import {
   Mail, RefreshCw, Moon, Sun, Download, Filter,
   AlertTriangle, CheckCircle, Clock, XCircle, Inbox, Loader2, Search,
   ToggleLeft, ToggleRight, Briefcase, Brain, LogIn, ChevronDown, UserCircle, LogOut, Plus, Trash2,
-  FileSpreadsheet, FileText, Sparkles, Copy, Cpu
+  FileSpreadsheet, FileText, Cpu
 } from 'lucide-react';
 import ClassificationModeModal from './ClassificationModeModal';
 import HRDashboard from './HRDashboard';
+import DraftReplyPanel from './DraftReplyPanel';
 import { apiFetch, setToken } from './App';
 
 // ── Config / Constants (matches Python backend settings.py) ─────────
@@ -184,14 +185,8 @@ async function fetchModels(ownerEmail = null) {
   return res.json();
 }
 
-async function fetchReplySuggestions(emailId, modelName = null, ownerEmail = null) {
-  const query = modelName ? `?model_name=${encodeURIComponent(modelName)}` : '';
-  const res = await apiFetchWithAccountRetry(`${API_BASE}/emails/${emailId}/reply-suggestions${query}`, { method: 'POST' }, ownerEmail);
-  if (!res.ok) throw new Error(`Reply API error: ${res.status}`);
-  return res.json();
-}
-
 // ── Components ──────────────────────────────────────────────────────
+import DraftReplyPanel from './DraftReplyPanel';
 
 const Tag = ({ label, value, darkMode }) => {
   const key = value;
@@ -289,11 +284,6 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelError, setModelError] = useState('');
-
-  // Auto-reply state
-  const [replyLoading, setReplyLoading] = useState({});
-  const [replySuggestions, setReplySuggestions] = useState({});
-  const [copiedReply, setCopiedReply] = useState(null);
 
   // Classification mode state
   const [showModal, setShowModal] = useState(false);
@@ -575,27 +565,6 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
     // Always reload ALL data from SQLite afterwards
     await loadAllData({ preserveError: refreshFailed });
   }, [loadAllData, classificationMode, ownerEmail, selectedModel]);
-
-  // Auto-reply handler
-  const handleSuggestReplies = useCallback(async (emailId) => {
-    setReplyLoading(prev => ({ ...prev, [emailId]: true }));
-    try {
-      const data = await fetchReplySuggestions(emailId, selectedModel || null, ownerEmail);
-      setReplySuggestions(prev => ({ ...prev, [emailId]: data.suggestions }));
-    } catch (err) {
-      console.error('Failed to fetch reply suggestions:', err);
-      setReplySuggestions(prev => ({ ...prev, [emailId]: ['Failed to generate suggestions. Try again.'] }));
-    } finally {
-      setReplyLoading(prev => ({ ...prev, [emailId]: false }));
-    }
-  }, [selectedModel, ownerEmail]);
-
-  const handleCopyReply = useCallback((text, replyKey) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedReply(replyKey);
-      setTimeout(() => setCopiedReply(null), 2000);
-    });
-  }, []);
 
   const handleExport = useCallback(() => {
     const headers = ['subject', 'sender', 'email_type_label', 'action_label', 'dept_label', 'priority_label', 'reason', 'received_at'];
@@ -977,11 +946,8 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
               emails={hrData}
               darkMode={darkMode}
               onMarkRead={handleMarkRead}
-              onSuggestReplies={handleSuggestReplies}
-              replyLoading={replyLoading}
-              replySuggestions={replySuggestions}
-              copiedReply={copiedReply}
-              onCopyReply={handleCopyReply}
+              ownerEmail={ownerEmail}
+              selectedModel={selectedModel}
             />
           )}
         </>
@@ -1264,8 +1230,6 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
               <div className="space-y-3">
                 {sorted.slice(0, 100).map((row) => {
                   const isRead = !!row.is_read;
-                  const hasReplies = replySuggestions[row.id];
-                  const isLoadingReply = replyLoading[row.id];
                   return (
                     <div
                       key={row.id}
@@ -1289,52 +1253,15 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
                       </div>
                       <div className="flex items-center justify-between">
                         <div className={`text-xs ${textSub}`}>{row.reason}</div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleSuggestReplies(row.id); }}
-                          disabled={isLoadingReply}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                            darkMode
-                              ? 'bg-violet-900/30 border-violet-700/50 text-violet-300 hover:bg-violet-900/50'
-                              : 'bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100'
-                          } disabled:opacity-50`}
-                          title="Generate AI reply suggestions"
-                        >
-                          {isLoadingReply ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                          {isLoadingReply ? 'Thinking...' : 'Suggest Replies'}
-                        </button>
                       </div>
-                      {/* Auto-Reply Suggestions */}
-                      {hasReplies && (
-                        <div className={`mt-3 pt-3 border-t space-y-2 ${darkMode ? 'border-stone-700' : 'border-stone-200'}`}>
-                          <div className={`text-xs font-semibold flex items-center gap-1.5 ${darkMode ? 'text-violet-300' : 'text-violet-700'}`}>
-                            <Sparkles className="w-3 h-3" /> AI Reply Suggestions
-                          </div>
-                          {hasReplies.map((reply, idx) => {
-                            const replyKey = `${row.id}-${idx}`;
-                            return (
-                              <div
-                                key={idx}
-                                className={`flex items-start gap-2 p-2.5 rounded-lg border cursor-pointer transition-all ${
-                                  copiedReply === replyKey
-                                    ? darkMode ? 'bg-emerald-900/30 border-emerald-700/50' : 'bg-emerald-50 border-emerald-200'
-                                    : darkMode ? 'bg-stone-800/50 border-stone-700 hover:bg-stone-800' : 'bg-stone-50 border-stone-200 hover:bg-stone-100'
-                                }`}
-                                onClick={(e) => { e.stopPropagation(); handleCopyReply(reply, replyKey); }}
-                                title="Click to copy"
-                              >
-                                <div className={`text-xs flex-1 ${darkMode ? 'text-stone-300' : 'text-stone-700'}`}>{reply}</div>
-                                <Copy className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${
-                                  copiedReply === replyKey
-                                    ? 'text-emerald-500'
-                                    : darkMode ? 'text-stone-500' : 'text-stone-400'
-                                }`} />
-                              </div>
-                            );
-                          })}
-                          {copiedReply && copiedReply.startsWith(row.id) && (
-                            <div className="text-xs text-emerald-500 font-medium">✓ Copied to clipboard!</div>
-                          )}
-                        </div>
+
+                      {row.email_type_label !== 'SPAM' && (
+                        <DraftReplyPanel
+                          email={row}
+                          darkMode={darkMode}
+                          ownerEmail={ownerEmail}
+                          selectedModel={selectedModel}
+                        />
                       )}
                     </div>
                   );

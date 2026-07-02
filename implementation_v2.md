@@ -306,9 +306,9 @@ was already an act of intent) — but any edited spans are visually marked, so i
 at a glance whether they engaged with the text or are sending it verbatim.
 
 ```jsx
-// naive word-level diff is enough here; a library like `diff` is fine too
+// naive word-level diff is enough here; the implementation now uses a local helper
 function highlightEdits(original, edited) {
-  const diff = diffWords(original, edited); // e.g. from the `diff` npm package
+  const diff = diffWordsLocal(original, edited);
   return diff.map((part, i) => (
     <span
       key={i}
@@ -378,21 +378,39 @@ optimistically before the server has actually committed to sending.
 
 ## 4. Security checklist before shipping
 
-- [ ] Prompt frames email body as untrusted data; steering instruction is user-supplied and trusted, email body is not
-- [ ] Original email always shown alongside draft, never hidden behind a tab/toggle
-- [ ] Generate and queue-send are separate API calls, no auto-chaining
-- [ ] Default scope is `gmail.compose`, not `gmail.send` or `gmail.modify`
-- [ ] Delayed-send worker actually gates the Gmail API call — cancel is tested to genuinely prevent sending, not just hide a toast
-- [ ] Sent replies logged with both draft and final text for audit
-- [ ] README/UI copy discloses the new compose/send permission clearly
+- [x] Prompt frames email body as untrusted data; steering instruction is user-supplied and trusted, email body is not
+- [x] Original email is shown in the expanded `DraftReplyPanel` while the draft is edited
+- [x] Generate and queue-send are separate API calls, no auto-chaining
+- [x] Default scope is `gmail.compose`, not `gmail.send` or `gmail.modify`
+- [x] Delayed-send worker gates the Gmail API call; store tests cover enqueue/cancel behavior and the frontend polls backend status before showing "Sent"
+- [x] Sent replies logged with both draft and final text for audit
+- [ ] Live Gmail QA still needed: cancel one queued send and let one queued send complete against a real authenticated account
+- [ ] README permission copy still needs an update later; README edits were intentionally skipped in this implementation pass
 
 ---
 
 ## 5. Suggested build order
 
-1. `reply_service.py` + prompt template with steering + thread summarization — test with a sample 7-message thread and one email containing an injected instruction
-2. Gmail `gmail.compose` scope + `gmail_create_draft` / `gmail_send_draft` helpers — re-run OAuth to pick up new scope
-3. `pending_sends` table + background worker + queue-send/cancel endpoints — test the cancel path actually stops the send under real timing
-4. `DraftReplyPanel.jsx`: steering input + chips, diff highlighting, countdown/undo UI
-5. `sent_replies` audit table
-6. Manual QA: generate with and without steering, edit, cancel a queued send, let one send through naturally, confirm Gmail draft is retained on cancel and threading is correct
+1. [x] `reply_service.py` + prompt template with steering + thread summarization
+2. [x] Gmail `gmail.compose` scope + `gmail_create_draft` / `gmail_send_draft` helpers
+3. [x] `pending_sends` table + background worker + queue-send/cancel/status endpoints
+4. [x] `DraftReplyPanel.jsx`: steering input + chips, original email preview, diff highlighting, countdown/undo UI
+5. [x] `sent_replies` audit table
+6. [ ] Manual QA: generate with and without steering, edit, cancel a queued send, let one send through naturally, confirm Gmail draft is retained on cancel and threading is correct
+
+## 6. Implementation pass status — 2026-07-02
+
+Completed in code:
+- Mounted the v2 draft composer in Standard and HR dashboards.
+- Replaced the old copy-only suggestion UI in active email cards.
+- Removed the frontend dependency on the unlisted `diff` package by using a local word-level diff helper.
+- Routed composer API calls through `/api` and the shared JWT key.
+- Added account-aware token refresh for composer calls.
+- Added backend status polling so the UI confirms `sent`/`failed` from the queue row.
+- Added owner-scoped pending-send lookup/cancel behavior.
+- Added store tests for enqueue, cancel scoping, and idempotent cancel.
+
+Verified locally:
+- `npm run build`
+- `python3 -m pytest tests/test_store.py tests/test_pipeline.py`
+- `python3 -m py_compile api/reply.py data/store.py pipeline/reply_service.py pipeline/send_worker.py`

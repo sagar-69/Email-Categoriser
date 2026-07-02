@@ -79,6 +79,7 @@
 | `POST` | `/api/auth/token` | Google OAuth2 token exchange / refresh |
 | `POST` | `/api/emails/{id}/generate-reply` | Generates a steered AI draft reply |
 | `POST` | `/api/emails/{id}/queue-send` | Queues a draft for delayed sending |
+| `GET` | `/api/pending-sends/{queue_id}` | Returns delayed-send queue status |
 | `POST` | `/api/pending-sends/{queue_id}/cancel` | Cancels a queued delayed send |
 | `GET` | `/api/models` | Lists available Ollama models |
 
@@ -285,7 +286,10 @@ rich==13.7.1
 - [x] `/api/stats` — aggregated counts
 - [x] `/api/health` — health check
 - [x] `/api/classify` — trigger classification pipeline
-- [x] `/api/emails/{id}/reply-suggestions` — AI auto-reply suggestions
+- [x] `/api/emails/{id}/generate-reply` — steered human-in-the-loop reply drafts
+- [x] `/api/emails/{id}/queue-send` — create Gmail draft and queue delayed send
+- [x] `/api/pending-sends/{queue_id}` — delayed-send status lookup
+- [x] `/api/pending-sends/{queue_id}/cancel` — real undo before worker sends the draft
 - [x] `/api/models` — model switching (support multiple Ollama models)
 - [x] `/api/auth/token` — API authentication (JWT tokens)
 - [x] Custom `RequestLoggingMiddleware` with Loguru
@@ -307,6 +311,10 @@ rich==13.7.1
   - [x] Search functionality (by subject, sender, or reason)
   - [x] Notification badges for urgent emails
   - [x] Account-aware API retry logic for JWT token refresh
+  - [x] Human-in-the-loop reply composer in Standard and HR modes
+  - [x] Reply steering input and quick intent chips
+  - [x] Editable AI draft with inline edit highlighting
+  - [x] Real delayed-send countdown with backend status confirmation and Undo
 
 ### DevOps / Tooling / Performance / Security
 - [x] `scripts/setup.sh` — automated environment setup
@@ -322,6 +330,12 @@ rich==13.7.1
 - [x] Self-signed cert generation + optional TLS via uvicorn (HTTPS in development)
 - [x] Rate limiting on `/api/classify` (10-second cooldown)
 - [x] Optional Fernet encryption for OAuth tokens
+- [x] Unit coverage for delayed-send enqueue/cancel store behavior
+
+### Remaining Manual Verification
+- [ ] Re-run Google OAuth for accounts that only granted `gmail.readonly`; v2 reply sending requires `gmail.compose`.
+- [ ] Live Gmail QA: generate a draft, edit it, undo before the 8-second window, then let one send complete and confirm Gmail threading.
+- [ ] Update user-facing permission copy in `README.md` later; skipped here because README edits were explicitly excluded.
 
 ---
 

@@ -5,6 +5,7 @@ from data.store import (
     upsert_email, load_all, get_stats, get_hr_stats,
     mark_as_read, count_all, get_unread_count,
     load_unread_ids, _invalidate_cache, _stats_cache,
+    enqueue_pending_send, cancel_pending_send, load_pending_send,
 )
 
 
@@ -189,3 +190,48 @@ class TestUnreadCount:
         upsert_email(_make_record("unr-003", is_read=0, owner_email="a@t.com"))
         upsert_email(_make_record("unr-004", is_read=0, owner_email="b@t.com"))
         assert get_unread_count(owner_email="a@t.com") == 1
+
+
+class TestPendingSendQueue:
+    """Tests for the reply v2 delayed send queue."""
+
+    def test_enqueue_pending_send_creates_scheduled_row(self, tmp_db):
+        queue_id = enqueue_pending_send(
+            email_id="reply-001",
+            gmail_draft_id="draft-001",
+            draft_text="AI draft",
+            final_text="Edited draft",
+            delay_seconds=8,
+            owner_email="owner@test.com",
+        )
+
+        row = load_pending_send(queue_id, owner_email="owner@test.com")
+        assert row is not None
+        assert row["status"] == "scheduled"
+        assert row["email_id"] == "reply-001"
+        assert row["gmail_draft_id"] == "draft-001"
+
+    def test_cancel_pending_send_is_owner_scoped(self, tmp_db):
+        queue_id = enqueue_pending_send(
+            email_id="reply-002",
+            gmail_draft_id="draft-002",
+            draft_text="AI draft",
+            final_text="Edited draft",
+            owner_email="owner@test.com",
+        )
+
+        assert cancel_pending_send(queue_id, owner_email="other@test.com") is False
+        assert load_pending_send(queue_id, owner_email="owner@test.com")["status"] == "scheduled"
+        assert cancel_pending_send(queue_id, owner_email="owner@test.com") is True
+        assert load_pending_send(queue_id, owner_email="owner@test.com")["status"] == "cancelled"
+
+    def test_cancel_pending_send_is_idempotent(self, tmp_db):
+        queue_id = enqueue_pending_send(
+            email_id="reply-003",
+            gmail_draft_id="draft-003",
+            draft_text="AI draft",
+            final_text="Edited draft",
+        )
+
+        assert cancel_pending_send(queue_id) is True
+        assert cancel_pending_send(queue_id) is False

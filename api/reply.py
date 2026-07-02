@@ -19,11 +19,22 @@ from data.store import (
     load_email_record,
     enqueue_pending_send,
     cancel_pending_send,
+    load_pending_send,
 )
 
 router = APIRouter()
 
 DELAY_SECONDS = 8  # how long the user has to undo
+
+
+def _resolve_owner(owner_email: str | None, user_email: str) -> str:
+    """Use the authenticated account, rejecting mismatched owner overrides."""
+    if owner_email and owner_email != user_email:
+        raise HTTPException(
+            status_code=403,
+            detail="owner_email must match the authenticated account.",
+        )
+    return owner_email or user_email
 
 
 # ── Request models ───────────────────────────────────────────────────────────
@@ -45,7 +56,7 @@ def generate_reply_endpoint(
     payload: GenerateReplyRequest = GenerateReplyRequest(),
     model_name: Optional[str] = Query(None, description="Override the Ollama model"),
     owner_email: Optional[str] = Query(None),
-    _user: str = Depends(get_current_user),
+    user_email: str = Depends(get_current_user),
 ):
     """
     Generate a single AI draft reply for the specified email.
@@ -55,7 +66,8 @@ def generate_reply_endpoint(
 
     Returns: { "draft": str, "model": str }
     """
-    email = load_email_record(email_id, owner_email)
+    effective_owner = _resolve_owner(owner_email, user_email)
+    email = load_email_record(email_id, effective_owner)
     if not email:
         raise HTTPException(status_code=404, detail=f"Email {email_id} not found.")
 
@@ -64,7 +76,7 @@ def generate_reply_endpoint(
 
     # Fetch thread context (live from Gmail, not from DB)
     try:
-        thread_context = get_thread_context(email_id, owner_email)
+        thread_context = get_thread_context(email_id, effective_owner)
     except Exception as exc:
         logger.warning("Thread context fetch failed for {}: {}", email_id, exc)
         thread_context = []
@@ -102,7 +114,7 @@ def queue_send_endpoint(
     email_id: str,
     payload: QueueSendRequest,
     owner_email: Optional[str] = Query(None),
-    _user: str = Depends(get_current_user),
+    user_email: str = Depends(get_current_user),
 ):
     """
     Save a real Gmail draft immediately, then schedule the actual send
@@ -111,7 +123,8 @@ def queue_send_endpoint(
     The Gmail draft is created right away via drafts.create so that
     even if the user closes the browser, the draft persists in Gmail.
     """
-    email = load_email_record(email_id, owner_email)
+    effective_owner = _resolve_owner(owner_email, user_email)
+    email = load_email_record(email_id, effective_owner)
     if not email:
         raise HTTPException(status_code=404, detail=f"Email {email_id} not found.")
 
@@ -127,7 +140,7 @@ def queue_send_endpoint(
             to=email.get("sender_email", ""),
             subject=subject,
             body=payload.text,
-            owner_email=owner_email,
+            owner_email=effective_owner,
         )
     except Exception as exc:
         logger.error("Failed to create Gmail draft for {}: {}", email_id, exc)
@@ -142,7 +155,7 @@ def queue_send_endpoint(
         draft_text=payload.original_draft,
         final_text=payload.text,
         delay_seconds=DELAY_SECONDS,
-        owner_email=owner_email,
+        owner_email=effective_owner,
     )
 
     return {
@@ -152,12 +165,29 @@ def queue_send_endpoint(
     }
 
 
-# ── Cancel send ──────────────────────────────────────────────────────────────
+# ── Send status / cancellation ───────────────────────────────────────────────
+
+@router.get("/api/pending-sends/{queue_id}")
+def pending_send_status_endpoint(
+    queue_id: int,
+    user_email: str = Depends(get_current_user),
+):
+    """Return the current status of a delayed send queue row."""
+    item = load_pending_send(queue_id, user_email)
+    if not item:
+        raise HTTPException(status_code=404, detail="Pending send not found.")
+    return {
+        "id": item["id"],
+        "email_id": item["email_id"],
+        "status": item["status"],
+        "scheduled_send_at": item["scheduled_send_at"],
+        "created_at": item["created_at"],
+    }
 
 @router.post("/api/pending-sends/{queue_id}/cancel")
 def cancel_send_endpoint(
     queue_id: int,
-    _user: str = Depends(get_current_user),
+    user_email: str = Depends(get_current_user),
 ):
     """
     Cancel a scheduled send. The Gmail draft is left in place — nothing
@@ -166,7 +196,7 @@ def cancel_send_endpoint(
 
     Returns 409 if the send has already fired.
     """
-    cancelled = cancel_pending_send(queue_id)
+    cancelled = cancel_pending_send(queue_id, user_email)
     if not cancelled:
         raise HTTPException(
             status_code=409,
