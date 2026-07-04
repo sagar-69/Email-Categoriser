@@ -9,6 +9,7 @@
  *   darkMode    — boolean
  *   ownerEmail  — optional, multi-account
  *   selectedModel — optional Ollama model override
+ *   onSent      — optional callback after the delayed send is confirmed
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
@@ -175,6 +176,7 @@ export default function DraftReplyPanel({
   darkMode = false,
   ownerEmail = null,
   selectedModel = null,
+  onSent,
 }) {
   // Panel visibility
   const [expanded, setExpanded] = useState(false);
@@ -195,6 +197,17 @@ export default function DraftReplyPanel({
   const [countdown, setCountdown] = useState(0);
   const [queueId, setQueueId] = useState(null);
   const countdownRef = useRef(null);
+  const sentNotifiedRef = useRef(false);
+
+  const notifySent = useCallback(() => {
+    if (sentNotifiedRef.current) return;
+    sentNotifiedRef.current = true;
+    if (onSent) onSent(email.id);
+  }, [email.id, onSent]);
+
+  useEffect(() => {
+    sentNotifiedRef.current = false;
+  }, [email.id]);
 
   // ── Generate reply ──────────────────────────────────────────────────────
 
@@ -295,6 +308,7 @@ export default function DraftReplyPanel({
           setSendState('sent');
           setQueueId(null);
           setError('');
+          notifySent();
           return;
         }
         if (data.status === 'failed') {
@@ -315,7 +329,7 @@ export default function DraftReplyPanel({
 
     setSendState('failed');
     setError('Could not confirm whether Gmail sent the draft. Check Gmail drafts/sent mail before retrying.');
-  }, [ownerEmail]);
+  }, [notifySent, ownerEmail]);
 
 
   // ── Undo (cancel) ──────────────────────────────────────────────────────
@@ -340,8 +354,9 @@ export default function DraftReplyPanel({
       // If 409 it was already sent
       setSendState('sent');
       setError('Undo window already closed.');
+      notifySent();
     }
-  }, [queueId, ownerEmail]);
+  }, [notifySent, queueId, ownerEmail]);
 
 
   // Cleanup on unmount

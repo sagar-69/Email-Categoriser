@@ -261,7 +261,15 @@ def get_credentials(owner_email: str | None = None) -> Credentials:
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             logger.info("Refreshing expired token for {}...", owner_email or "default")
-            creds.refresh(Request())
+            try:
+                from google.auth.exceptions import RefreshError
+                creds.refresh(Request())
+            except RefreshError as exc:
+                logger.error("Token refresh failed for {}: {}", owner_email or "default", exc)
+                raise RuntimeError(
+                    f"Token for {owner_email or 'default'} could not be refreshed (it may have been revoked or changed scopes). "
+                    "Please re-authenticate via the dashboard."
+                )
             _save_token_file(token_path, creds.to_json())
             logger.info("Token refreshed and saved to {}", token_path)
         else:

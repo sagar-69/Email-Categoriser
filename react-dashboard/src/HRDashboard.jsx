@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   Calendar, DollarSign, Users, LogOut, FileText, Inbox, Mail,
-  Search, Download, FileSpreadsheet,
+  Search, Download, FileSpreadsheet, Filter, XCircle,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -78,6 +78,7 @@ export default function HRDashboard({
     HR_CATEGORIES.map(c => c.id)
   );
   const [sortBy, setSortBy] = useState('Urgent First');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Theme helpers
   const bgCard = darkMode ? 'bg-stone-900' : 'bg-white';
@@ -251,12 +252,33 @@ export default function HRDashboard({
   };
 
   return (
-    <div className="flex">
-      {/* ── HR Sidebar ── */}
-      <aside className={`w-64 h-screen sticky top-0 border-r p-5 overflow-y-auto ${borderCol} ${bgCard}`}>
-        <div className="flex items-center gap-2 mb-6">
-          <FileText className="w-6 h-6 text-amber-500" />
-          <h2 className={`font-bold text-lg ${textMain}`}>HR Categories</h2>
+    <div className="relative flex">
+      {showFilters && (
+        <button
+          type="button"
+          aria-label="Close HR filters"
+          onClick={() => setShowFilters(false)}
+          className="fixed inset-0 z-30 bg-black/20"
+        />
+      )}
+
+      {/* ── HR Sliding Filters ── */}
+      <aside className={`fixed left-0 top-0 z-40 h-screen w-72 border-r p-5 overflow-y-auto shadow-xl transition-transform duration-300 ease-out ${borderCol} ${bgCard} ${
+        showFilters ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-2">
+            <FileText className="w-6 h-6 text-amber-500" />
+            <h2 className={`font-bold text-lg ${textMain}`}>HR Categories</h2>
+          </div>
+          <button
+            type="button"
+            title="Hide HR filters"
+            onClick={() => setShowFilters(false)}
+            className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+          >
+            <XCircle className="w-4 h-4" />
+          </button>
         </div>
 
         <div className={`rounded-lg border p-2 ${darkMode ? 'bg-stone-900 border-stone-700' : 'bg-stone-50 border-stone-200'}`}>
@@ -306,6 +328,17 @@ export default function HRDashboard({
 
       {/* ── Main Content ── */}
       <main className="flex-1 p-6">
+        <div className="mb-6">
+          <button
+            type="button"
+            title="Show HR filters"
+            onClick={() => setShowFilters(true)}
+            className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+          >
+            <Filter className="w-5 h-5" />
+          </button>
+        </div>
+
         {/* Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           {/* Total */}

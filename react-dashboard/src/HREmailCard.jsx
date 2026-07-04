@@ -108,6 +108,7 @@ export default function HREmailCard({
             darkMode={darkMode}
             ownerEmail={ownerEmail}
             selectedModel={selectedModel}
+            onSent={onMarkRead}
           />
         </div>
       )}

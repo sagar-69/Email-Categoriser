@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -186,8 +186,6 @@ async function fetchModels(ownerEmail = null) {
 }
 
 // ── Components ──────────────────────────────────────────────────────
-import DraftReplyPanel from './DraftReplyPanel';
-
 const Tag = ({ label, value, darkMode }) => {
   const key = value;
   const classes = TAG_BG[darkMode ? 'dark' : 'light'][key] || 'bg-gray-100 text-gray-800';
@@ -277,6 +275,8 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
   const [unreadCounts, setUnreadCounts] = useState({ total: 0, standard: 0, hr: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const markedReadRef = useRef(new Set());
 
   // Model switching state
   const [availableModels, setAvailableModels] = useState([]);
@@ -515,18 +515,24 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
 
   // Mark email as read (optimistic UI)
   const handleMarkRead = useCallback(async (emailId) => {
+    const shouldUpdateCounts = !markedReadRef.current.has(emailId);
+    markedReadRef.current.add(emailId);
+
     // Optimistic update — immediately mark as read in local state
     setData(prev => prev.map(e => e.id === emailId ? { ...e, is_read: 1 } : e));
     setHrData(prev => prev.map(e => e.id === emailId ? { ...e, is_read: 1 } : e));
-    setUnreadCounts(prev => ({
-      total: Math.max(0, prev.total - 1),
-      standard: Math.max(0, prev.standard - 1),
-      hr: Math.max(0, prev.hr - 1),
-    }));
+    if (shouldUpdateCounts) {
+      setUnreadCounts(prev => ({
+        total: Math.max(0, prev.total - 1),
+        standard: Math.max(0, prev.standard - 1),
+        hr: Math.max(0, prev.hr - 1),
+      }));
+    }
     try {
       await apiMarkRead(emailId, ownerEmail);
     } catch (err) {
       console.error('Failed to mark email as read:', err);
+      markedReadRef.current.delete(emailId);
       // Revert on failure
       loadAllData();
     }
@@ -952,12 +958,33 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
           )}
         </>
       ) : (
-      <div className="flex">
-        {/* ── Sidebar ── */}
-        <aside className={`w-64 h-screen sticky top-0 border-r p-5 overflow-y-auto ${borderCol} ${bgCard}`}>
-          <div className="flex items-center gap-2 mb-6">
-            <Mail className="w-6 h-6 text-sky-500" />
-            <h2 className={`font-bold text-lg ${textMain}`}>Filters</h2>
+      <div className="relative flex">
+        {showFilters && (
+          <button
+            type="button"
+            aria-label="Close filters"
+            onClick={() => setShowFilters(false)}
+            className="fixed inset-0 z-30 bg-black/20"
+          />
+        )}
+
+        {/* ── Sliding Filters ── */}
+        <aside className={`fixed left-0 top-0 z-40 h-screen w-72 border-r p-5 overflow-y-auto shadow-xl transition-transform duration-300 ease-out ${borderCol} ${bgCard} ${
+          showFilters ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <div className="flex items-center justify-between gap-3 mb-6">
+            <div className="flex items-center gap-2">
+              <Mail className="w-6 h-6 text-sky-500" />
+              <h2 className={`font-bold text-lg ${textMain}`}>Filters</h2>
+            </div>
+            <button
+              type="button"
+              title="Hide filters"
+              onClick={() => setShowFilters(false)}
+              className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-800 border-stone-700 text-stone-300 hover:bg-stone-700' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
           </div>
 
           <FilterSelect label="Email type" options={EMAIL_TYPE_DISPLAY} selected={selEmailType} onChange={setSelEmailType} darkMode={darkMode} />
@@ -976,10 +1003,20 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className={`text-2xl font-bold flex items-center gap-2 ${textMain}`}>
-                <Inbox className="w-7 h-7 text-sky-500" />
-                Inbox Intelligence
-              </h1>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  title="Show filters"
+                  onClick={() => setShowFilters(true)}
+                  className={`p-2 rounded-lg border transition-colors ${darkMode ? 'bg-stone-900 border-stone-700 text-stone-300 hover:bg-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'}`}
+                >
+                  <Filter className="w-5 h-5" />
+                </button>
+                <h1 className={`text-2xl font-bold flex items-center gap-2 ${textMain}`}>
+                  <Inbox className="w-7 h-7 text-sky-500" />
+                  Inbox Intelligence
+                </h1>
+              </div>
               <p className={`text-sm mt-1 ${textSub}`}>Smart email classification dashboard — Live data from SQLite</p>
             </div>
             <div className="flex items-center gap-3">
@@ -1261,6 +1298,7 @@ export default function InboxDashboard({ ownerEmail, ownerAccount, accounts = []
                           darkMode={darkMode}
                           ownerEmail={ownerEmail}
                           selectedModel={selectedModel}
+                          onSent={handleMarkRead}
                         />
                       )}
                     </div>
