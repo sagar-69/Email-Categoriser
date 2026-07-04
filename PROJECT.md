@@ -304,7 +304,8 @@ rich==13.7.1
   - [x] 1 stacked timeline bar (Emails by Day)
   - [x] Email list with color-coded tags
   - [x] Sort by Priority / Recent / Action Required (for both Standard and HR)
-  - [x] Sidebar multi-select filters (all 4 dimensions)
+  - [x] Slide-out multi-select filters (all 4 Standard dimensions)
+  - [x] Slide-out HR category filters
   - [x] CSV, Excel (.xlsx), and PDF export functionality
   - [x] Refresh button (triggers re-classification) with error state persistence
   - [x] Email body preview on React email cards
@@ -315,6 +316,7 @@ rich==13.7.1
   - [x] Reply steering input and quick intent chips
   - [x] Editable AI draft with inline edit highlighting
   - [x] Real delayed-send countdown with backend status confirmation and Undo
+  - [x] Automatically mark an email read after a reply send is confirmed
 
 ### DevOps / Tooling / Performance / Security
 - [x] `scripts/setup.sh` — automated environment setup

@@ -335,12 +335,16 @@ Global UI State:
   lastSync          → timestamp of last fetch
   unreadCounts      → { total, standard, hr } counts from API
   activeAccount     → currently selected Google account for JWT auth
+  showFilters       → controls the Standard slide-out filter drawer
+  markedReadRef     → prevents duplicate unread-count decrements
 
 Filter State:
   selEmailType      → multi-select filter (array of keys)
   selAction         → multi-select filter
   selDept           → multi-select filter
   selPriority       → multi-select filter
+  HRDashboard.showFilters → controls the HR category slide-out drawer
+  HRDashboard.selectedCategories → HR category multi-select filter
 
 Sort State:
   sortBy            → 'Priority' | 'Most recent' | 'Action required first'
@@ -435,6 +439,7 @@ Standard and HR dashboards share AI controls:
 - **Ollama model switcher**: `/api/models`
 - **Human-in-the-loop reply composer**: `DraftReplyPanel.jsx` triggers `/api/emails/{id}/generate-reply`, `/api/emails/{id}/queue-send`, `/api/pending-sends/{queue_id}`, and `/api/pending-sends/{queue_id}/cancel`.
 - **Reply safety controls**: steering input, quick intent chips, editable draft, local edit highlighting, backend-confirmed delayed send, and real Undo before `drafts.send`.
+- **Post-send triage**: once the backend confirms `sent`, `DraftReplyPanel.jsx` calls the parent `onSent` callback; Standard and HR cards route that to `handleMarkRead`, which updates `is_read` and unread counts.
 - **Re-classification**: Refresh triggers `POST /api/classify` with the selected model.
 
 ---

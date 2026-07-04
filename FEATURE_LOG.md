@@ -259,6 +259,13 @@
 - **Rationale**: The frontend should only show "Sent" after the backend worker confirms the queued send, and queue operations should remain account-aware.
 - **Impact**: Safer multi-account behavior and more accurate send-state UI.
 
+#### [✅] Added — Post-Reply Read State & Sliding Filters
+- **Date**: 2026-07-04
+- **Change**: Added an `onSent` callback from `DraftReplyPanel.jsx` to Standard and HR email cards so a successfully sent reply automatically marks the source email as read. Replaced the always-visible Standard filter sidebar and HR category sidebar with hidden slide-out drawers.
+- **Features**: Backend-confirmed send-to-read transition, duplicate unread-count protection, filter buttons for opening drawers, close buttons, outside-click dismissal, and matching behavior in Standard and HR modes.
+- **Rationale**: Sending a reply completes triage for that email, and filters should stay out of the way until needed.
+- **Impact**: Cleaner dashboard layout and fewer manual clicks after replying.
+
 ---
 
 ## Pending / Planned Changes
@@ -346,6 +353,8 @@
 | 2026-07-02 | ✅ | Delayed Send Queue & Background Worker |
 | 2026-07-02 | ✅ | Human-in-the-Loop Reply (v2) [Frontend] |
 | 2026-07-02 | ✅ | Delayed Send Status Endpoint & Store Tests |
+| 2026-07-04 | ✅ | Auto-mark read after confirmed reply send |
+| 2026-07-04 | ✅ | Slide-out filters for Standard and HR dashboards |
 | TBD | ✅ | WebSocket real-time updates |
 | TBD | ✅ | Email threading view |
 | TBD | 🏗️ | Background job queue (Celery/RQ) |

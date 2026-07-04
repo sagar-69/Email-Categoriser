@@ -368,10 +368,17 @@ The "Sent" state only appears once the countdown naturally completes (or, better
 a lightweight poll/websocket confirms `status: sent` from the backend) — never
 optimistically before the server has actually committed to sending.
 
+After the backend confirms `status: sent`, `DraftReplyPanel.jsx` calls `onSent(email.id)`.
+Both Standard and HR dashboard cards pass their existing mark-read handler into that
+callback, so a completed reply automatically removes the email from the unread triage
+list and updates counts without requiring a second manual click.
+
 ### 3.4 Integration point
 
 ```jsx
-{email.category !== "SPAM" && <DraftReplyPanel email={email} />}
+{email.category !== "SPAM" && (
+  <DraftReplyPanel email={email} onSent={handleMarkRead} />
+)}
 ```
 
 ---
@@ -409,6 +416,8 @@ Completed in code:
 - Added backend status polling so the UI confirms `sent`/`failed` from the queue row.
 - Added owner-scoped pending-send lookup/cancel behavior.
 - Added store tests for enqueue, cancel scoping, and idempotent cancel.
+- Added automatic mark-read behavior after confirmed sends in Standard and HR dashboards.
+- Replaced always-visible Standard and HR filter sidebars with slide-out drawers.
 
 Verified locally:
 - `npm run build`
